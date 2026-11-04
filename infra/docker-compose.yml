@@ -1,0 +1,22 @@
+# DEV INFRA ONLY — does not start or implement the Go backend.
+services:
+  postgres:
+    image: postgres:17-alpine
+    # NOTE: PostGIS (postgis/postgis) не имеет arm64-манифеста; геозапросы в MVP не используются.
+    # При внедрении PostGIS — вернуться к postgis/postgis или собрать arm64-образ.
+    environment:
+      POSTGRES_DB: klevliga
+      POSTGRES_USER: klevliga
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-klevliga_dev}
+    ports:
+      # Порт БД klevliga на хосте.
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U klevliga -d klevliga"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  postgres_data:

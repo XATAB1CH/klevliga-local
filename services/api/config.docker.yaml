@@ -1,0 +1,24 @@
+server:
+  http:
+    address: ":8080"
+
+connections:
+  postgres:
+    main:
+      host: ${DB_HOST}
+      port: ${DB_PORT:5432}
+      user: ${DB_USER}
+      password: ${DB_PASSWORD}
+      dbname: ${DB_NAME}
+      search_path: ${DB_SCHEMA:}
+
+auth:
+  session_ttl: 720h
+  cookie_name: klevliga_session
+  cookie_secure: false
+  cookie_domain: ""
+
+logger:
+  title: ${APP_NAME:klevliga-api}
+  level: info
+  pretty: false

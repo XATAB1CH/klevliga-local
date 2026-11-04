@@ -1,0 +1,650 @@
+openapi: 3.0.3
+info:
+  title: КлёвЛига MVP API
+  version: 0.1.0-draft
+  description: >-
+    Черновой контракт, а не реализованный Go API. Согласовать права, статусы и DTO с backend-разработчиком
+    до генерации frontend-клиента. По умолчанию публичные чтения разрешены без входа,
+    операции записи требуют server-side session cookie и CSRF-защиты.
+servers:
+  - url: /api/v1
+    description: Same-origin API via reverse proxy / Vite proxy
+security: []
+tags:
+  - {name: Auth}
+  - {name: Users}
+  - {name: Feed}
+  - {name: Forum}
+  - {name: Reports}
+  - {name: Waters}
+  - {name: Search}
+  - {name: Follows}
+  - {name: Notifications}
+  - {name: Media}
+  - {name: Moderation}
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Регистрация пользователя
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, username, password]
+              properties:
+                email: {type: string, format: email}
+                username: {type: string, minLength: 3, maxLength: 32}
+                password: {type: string, minLength: 12}
+      responses:
+        '201': {description: Пользователь создан; требуется подтверждение email}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Вход, установка HttpOnly session cookie
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: {type: string, format: email}
+                password: {type: string}
+      responses:
+        '204': {description: Cookie установлена}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Отзыв текущей сессии
+      operationId: logout
+      security: [{sessionCookie: []}]
+      responses:
+        '204': {description: Сессия отозвана}
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Текущий пользователь
+      operationId: me
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Профиль текущего пользователя
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/User'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: Публичный профиль
+      operationId: getUser
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '200':
+          description: Профиль
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/User'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /feed:
+    get:
+      tags: [Feed]
+      summary: Публичная лента тем и отчётов
+      operationId: getFeed
+      parameters:
+        - {$ref: '#/components/parameters/Cursor'}
+        - {$ref: '#/components/parameters/Limit'}
+        - name: kind
+          in: query
+          schema: {type: string, enum: [all, topic, report], default: all}
+        - name: region_id
+          in: query
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Лента
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FeedPage'}
+  /forum/categories:
+    get:
+      tags: [Forum]
+      summary: Дерево категорий форума
+      operationId: listCategories
+      responses:
+        '200':
+          description: Категории
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Category'}
+  /forum/topics:
+    get:
+      tags: [Forum]
+      summary: Список тем
+      operationId: listTopics
+      parameters:
+        - {$ref: '#/components/parameters/Cursor'}
+        - {$ref: '#/components/parameters/Limit'}
+        - name: category_id
+          in: query
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Темы
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TopicPage'}
+    post:
+      tags: [Forum]
+      summary: Создать тему
+      operationId: createTopic
+      security: [{sessionCookie: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/NewTopic'}
+      responses:
+        '201':
+          description: Тема создана
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Topic'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /forum/topics/{id}:
+    get:
+      tags: [Forum]
+      summary: Тема форума
+      operationId: getTopic
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '200':
+          description: Тема
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Topic'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /forum/topics/{id}/posts:
+    get:
+      tags: [Forum]
+      summary: Ответы в теме
+      operationId: listTopicPosts
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+        - {$ref: '#/components/parameters/Cursor'}
+        - {$ref: '#/components/parameters/Limit'}
+      responses:
+        '200':
+          description: Ответы
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PostPage'}
+    post:
+      tags: [Forum]
+      summary: Ответить в теме
+      operationId: replyTopic
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: {type: string, minLength: 1, maxLength: 20000}
+                parent_post_id: {type: string, format: uuid, nullable: true}
+      responses:
+        '201':
+          description: Ответ создан
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Post'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /reports:
+    get:
+      tags: [Reports]
+      summary: Рыболовные отчёты
+      operationId: listReports
+      parameters:
+        - {$ref: '#/components/parameters/Cursor'}
+        - {$ref: '#/components/parameters/Limit'}
+        - name: water_id
+          in: query
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Отчёты
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReportPage'}
+    post:
+      tags: [Reports]
+      summary: Создать рыболовный отчёт (создаёт и связанную тему)
+      operationId: createReport
+      security: [{sessionCookie: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/NewReport'}
+      responses:
+        '201':
+          description: Отчёт создан
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Report'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /reports/{id}:
+    get:
+      tags: [Reports]
+      summary: Отчёт по ID
+      operationId: getReport
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '200':
+          description: Отчёт
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Report'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /waters:
+    get:
+      tags: [Waters]
+      summary: Каталог водоёмов
+      operationId: listWaters
+      parameters:
+        - {$ref: '#/components/parameters/Cursor'}
+        - {$ref: '#/components/parameters/Limit'}
+        - name: q
+          in: query
+          schema: {type: string, maxLength: 200}
+        - name: region_id
+          in: query
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Водоёмы
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/WaterPage'}
+  /waters/{id}:
+    get:
+      tags: [Waters]
+      summary: Карточка водоёма
+      operationId: getWater
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '200':
+          description: Водоём
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Water'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /search:
+    get:
+      tags: [Search]
+      summary: Поиск по публичным материалам
+      operationId: search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: {type: string, minLength: 2, maxLength: 200}
+        - name: type
+          in: query
+          schema: {type: string, enum: [all, topics, reports, waters, users], default: all}
+      responses:
+        '200':
+          description: Результаты по типам
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [topics, reports, waters, users]
+                properties:
+                  topics:
+                    type: array
+                    items: {$ref: '#/components/schemas/Topic'}
+                  reports:
+                    type: array
+                    items: {$ref: '#/components/schemas/Report'}
+                  waters:
+                    type: array
+                    items: {$ref: '#/components/schemas/Water'}
+                  users:
+                    type: array
+                    items: {$ref: '#/components/schemas/User'}
+  /follows:
+    post:
+      tags: [Follows]
+      summary: Подписаться на тему или водоём
+      operationId: follow
+      security: [{sessionCookie: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_type, target_id]
+              properties:
+                target_type: {type: string, enum: [topic, water]}
+                target_id: {type: string, format: uuid}
+      responses:
+        '204': {description: Подписка сохранена}
+  /follows/{target_type}/{target_id}:
+    delete:
+      tags: [Follows]
+      summary: Отписаться
+      operationId: unfollow
+      security: [{sessionCookie: []}]
+      parameters:
+        - name: target_type
+          in: path
+          required: true
+          schema: {type: string, enum: [topic, water]}
+        - name: target_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Подписка удалена}
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: Уведомления текущего пользователя
+      operationId: listNotifications
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Cursor'}
+        - {$ref: '#/components/parameters/Limit'}
+      responses:
+        '200':
+          description: Уведомления
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/Notification'}
+                  next_cursor: {type: string, nullable: true}
+  /media/uploads:
+    post:
+      tags: [Media]
+      summary: Получить URL для загрузки файла
+      operationId: createUpload
+      security: [{sessionCookie: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, mime, size_bytes]
+              properties:
+                filename: {type: string, maxLength: 255}
+                mime: {type: string, enum: [image/jpeg, image/png, image/webp]}
+                size_bytes: {type: integer, format: int64, minimum: 1, maximum: 20971520}
+      responses:
+        '201':
+          description: Временный URL на запись
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, upload_url, expires_at]
+                properties:
+                  id: {type: string, format: uuid}
+                  upload_url: {type: string, format: uri}
+                  expires_at: {type: string, format: date-time}
+  /media/uploads/{id}/complete:
+    post:
+      tags: [Media]
+      summary: Подтвердить завершение загрузки (фото проверяется и очищается от GPS EXIF)
+      operationId: completeUpload
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '202':
+          description: Файл обрабатывается
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, status]
+                properties:
+                  id: {type: string, format: uuid}
+                  status: {type: string, enum: [processing, ready, rejected]}
+  /moderation/flags:
+    post:
+      tags: [Moderation]
+      summary: Жалоба на публичный материал
+      operationId: flagContent
+      security: [{sessionCookie: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_type, target_id, reason]
+              properties:
+                target_type: {type: string, enum: [topic, post, report, user]}
+                target_id: {type: string, format: uuid}
+                reason: {type: string, minLength: 10, maxLength: 3000}
+      responses:
+        '201': {description: Жалоба зарегистрирована}
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: klevliga_session
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    Cursor:
+      name: cursor
+      in: query
+      schema: {type: string}
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+  responses:
+    BadRequest:
+      description: Некорректные входные данные
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    Unauthorized:
+      description: Требуется авторизация
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    NotFound:
+      description: Не найдено
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    Conflict:
+      description: Уже существует
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+  schemas:
+    ApiError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code: {type: string}
+            message: {type: string}
+            request_id: {type: string}
+            fields: {type: object, additionalProperties: {type: string}}
+    User:
+      type: object
+      required: [id, username, display_name]
+      properties:
+        id: {type: string, format: uuid}
+        username: {type: string}
+        display_name: {type: string}
+        avatar_url: {type: string, format: uri, nullable: true}
+        region_id: {type: string, format: uuid, nullable: true}
+        bio: {type: string, nullable: true}
+        joined_at: {type: string, format: date-time}
+    Category:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        slug: {type: string}
+        parent_id: {type: string, format: uuid, nullable: true}
+    Topic:
+      type: object
+      required: [id, category_id, author_id, title, slug, created_at, last_activity_at, replies_count]
+      properties:
+        id: {type: string, format: uuid}
+        category_id: {type: string, format: uuid}
+        author_id: {type: string, format: uuid}
+        title: {type: string}
+        slug: {type: string}
+        body: {type: string}
+        type: {type: string, enum: [discussion, question, report]}
+        pinned: {type: boolean}
+        locked: {type: boolean}
+        created_at: {type: string, format: date-time}
+        last_activity_at: {type: string, format: date-time}
+        replies_count: {type: integer}
+        views_count: {type: integer}
+    NewTopic:
+      type: object
+      required: [category_id, title, body]
+      properties:
+        category_id: {type: string, format: uuid}
+        title: {type: string, minLength: 5, maxLength: 250}
+        body: {type: string, minLength: 1, maxLength: 20000}
+    Post:
+      type: object
+      required: [id, topic_id, author_id, body, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        topic_id: {type: string, format: uuid}
+        author_id: {type: string, format: uuid}
+        body: {type: string}
+        created_at: {type: string, format: date-time}
+        edited_at: {type: string, format: date-time, nullable: true}
+        parent_post_id: {type: string, format: uuid, nullable: true}
+    Report:
+      type: object
+      required: [id, topic_id, author_id, title, body, fished_at, location_visibility, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        topic_id: {type: string, format: uuid}
+        author_id: {type: string, format: uuid}
+        title: {type: string}
+        body: {type: string}
+        water_id: {type: string, format: uuid, nullable: true}
+        fished_at: {type: string, format: date}
+        location_visibility: {type: string, enum: [water_only, private]}
+        species: {type: array, items: {type: string}}
+        media_urls: {type: array, items: {type: string, format: uri}}
+        created_at: {type: string, format: date-time}
+    NewReport:
+      type: object
+      required: [title, body, fished_at, location_visibility]
+      properties:
+        title: {type: string, minLength: 5, maxLength: 250}
+        body: {type: string, minLength: 1, maxLength: 20000}
+        water_id: {type: string, format: uuid, nullable: true}
+        fished_at: {type: string, format: date}
+        location_visibility: {type: string, enum: [water_only, private], default: water_only}
+        media_ids: {type: array, maxItems: 20, items: {type: string, format: uuid}}
+        species: {type: array, items: {type: string}}
+    Water:
+      type: object
+      required: [id, name, slug, kind]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        slug: {type: string}
+        kind: {type: string, enum: [river, lake, reservoir, pond, other]}
+        region_id: {type: string, format: uuid, nullable: true}
+        description: {type: string, nullable: true}
+        cover_url: {type: string, format: uri, nullable: true}
+    Notification:
+      type: object
+      required: [id, type, title, created_at, read]
+      properties:
+        id: {type: string, format: uuid}
+        type: {type: string, enum: [topic_reply, followed_topic, followed_water, mention, moderation]}
+        title: {type: string}
+        created_at: {type: string, format: date-time}
+        read: {type: boolean}
+        target_url: {type: string}
+    FeedItem:
+      type: object
+      required: [kind, topic]
+      properties:
+        kind: {type: string, enum: [topic, report]}
+        topic: {$ref: '#/components/schemas/Topic'}
+        report: {$ref: '#/components/schemas/Report'}
+    FeedPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/FeedItem'}}
+        next_cursor: {type: string, nullable: true}
+    TopicPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Topic'}}
+        next_cursor: {type: string, nullable: true}
+    PostPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Post'}}
+        next_cursor: {type: string, nullable: true}
+    ReportPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Report'}}
+        next_cursor: {type: string, nullable: true}
+    WaterPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Water'}}
+        next_cursor: {type: string, nullable: true}
