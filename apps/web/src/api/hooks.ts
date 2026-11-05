@@ -1,9 +1,41 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api, ApiError, type FeedParams, type ReportsParams, type SearchParams, type TopicsParams, type WatersParams } from './client';
+import type { User } from './types';
+
+type CursorParams = { cursor?: string; limit?: number };
+
+// Every parameter affecting a response must also identify its cache entry.
+function listParams<T extends CursorParams>(params: T) {
+  return { ...params, cursor: params.cursor || null, limit: params.limit ?? 20 };
+}
+
+async function clearPrivateQueries(client: QueryClient) {
+  await client.cancelQueries({ queryKey: ['private'] });
+  client.removeQueries({ queryKey: ['private'] });
+}
+
+async function clearSession(client: QueryClient) {
+  await client.cancelQueries({ queryKey: ['me'] });
+  client.setQueryData(['me'], null);
+  await clearPrivateQueries(client);
+}
+
+async function loadCurrentUser(client: QueryClient) {
+  let user: User | null;
+  try {
+    user = await api.getMe();
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401) throw error;
+    user = null;
+  }
+  const previous = client.getQueryData<User | null>(['me']);
+  if (previous?.id !== user?.id) await clearPrivateQueries(client);
+  return user;
+}
 
 export function useFeed(params: FeedParams = {}) {
   return useQuery({
-    queryKey: ['feed', params.kind ?? 'all', params.cursor ?? null],
+    queryKey: ['feed', { ...listParams(params), kind: params.kind ?? 'all' }],
     queryFn: () => api.getFeed(params),
     placeholderData: (prev) => prev,
   });
@@ -15,7 +47,7 @@ export function useCategories() {
 
 export function useTopics(params: TopicsParams = {}) {
   return useQuery({
-    queryKey: ['topics', params.category_id ?? null, params.cursor ?? null],
+    queryKey: ['topics', listParams(params)],
     queryFn: () => api.getTopics(params),
     placeholderData: (prev) => prev,
   });
@@ -25,13 +57,13 @@ export function useTopic(id: string) {
   return useQuery({ queryKey: ['topic', id], queryFn: () => api.getTopic(id), enabled: !!id });
 }
 
-export function usePosts(topicId: string) {
-  return useQuery({ queryKey: ['posts', topicId], queryFn: () => api.getPosts(topicId), enabled: !!topicId });
+export function usePosts(topicId: string, params: CursorParams = {}) {
+  return useQuery({ queryKey: ['posts', topicId, listParams(params)], queryFn: () => api.getPosts(topicId, params), enabled: !!topicId });
 }
 
 export function useReports(params: ReportsParams = {}) {
   return useQuery({
-    queryKey: ['reports', params.water_id ?? null, params.cursor ?? null],
+    queryKey: ['reports', listParams(params)],
     queryFn: () => api.getReports(params),
     placeholderData: (prev) => prev,
   });
@@ -39,7 +71,7 @@ export function useReports(params: ReportsParams = {}) {
 
 export function useWaters(params: WatersParams = {}) {
   return useQuery({
-    queryKey: ['waters', params.q ?? null, params.cursor ?? null],
+    queryKey: ['waters', listParams(params)],
     queryFn: () => api.getWaters(params),
     placeholderData: (prev) => prev,
   });
@@ -51,7 +83,7 @@ export function useWater(id: string) {
 
 export function useSearch(params: SearchParams) {
   return useQuery({
-    queryKey: ['search', params.q, params.type ?? 'all'],
+    queryKey: ['search', { ...params, type: params.type ?? 'all', limit: params.limit ?? 20 }],
     queryFn: () => api.search(params),
     enabled: params.q.trim().length >= 2,
   });
@@ -59,23 +91,22 @@ export function useSearch(params: SearchParams) {
 
 // Возвращает текущего пользователя или null, если сессии нет.
 export function useMe() {
+  const client = useQueryClient();
   return useQuery({
     queryKey: ['me'],
-    queryFn: async () => {
-      try {
-        return await api.getMe();
-      } catch (e) {
-        if (e instanceof ApiError && e.status === 401) return null;
-        throw e;
-      }
-    },
+    queryFn: () => loadCurrentUser(client),
     retry: false,
     staleTime: 60_000,
   });
 }
 
-export function useNotifications() {
-  return useQuery({ queryKey: ['notifications'], queryFn: () => api.getNotifications() });
+export function useNotifications(params: CursorParams = {}) {
+  const { data: user } = useMe();
+  return useQuery({
+    queryKey: ['private', user?.id ?? null, 'notifications', listParams(params)],
+    queryFn: () => api.getNotifications(params),
+    enabled: !!user,
+  });
 }
 
 function useInvalidate() {
@@ -89,15 +120,18 @@ export function useLogin() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (p: { email: string; password: string }) => api.login(p.email, p.password),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['me'] }),
+    onSuccess: async () => {
+      await clearSession(qc);
+      // Resolve login only after the authenticated profile is available.
+      await qc.fetchQuery({ queryKey: ['me'], queryFn: api.getMe, staleTime: 0 });
+    },
   });
 }
 
 export function useRegister() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (p: { email: string; username: string; password: string }) => api.register(p.email, p.username, p.password),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['me'] }),
+    // Registration creates an account, but the API does not create a session.
   });
 }
 
@@ -105,7 +139,7 @@ export function useLogout() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => api.logout(),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['me'] }),
+    onSuccess: () => clearSession(qc),
   });
 }
 

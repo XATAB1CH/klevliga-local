@@ -5,6 +5,8 @@ import type { User } from '../api/types';
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
+  error: Error | null;
+  isLoggingOut: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<unknown>;
   register: (email: string, username: string, password: string) => Promise<unknown>;
@@ -22,11 +24,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(() => ({
     user: me.data ?? null,
     isLoading: me.isLoading,
+    error: me.error,
+    isLoggingOut: logoutMut.isPending,
     isAuthenticated: !!me.data,
     login: (email, password) => loginMut.mutateAsync({ email, password }),
     register: (email, username, password) => registerMut.mutateAsync({ email, username, password }),
     logout: () => logoutMut.mutateAsync(),
-  }), [me.data, me.isLoading, loginMut, registerMut, logoutMut]);
+  }), [me.data, me.isLoading, me.error, loginMut, registerMut, logoutMut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
