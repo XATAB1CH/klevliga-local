@@ -23,7 +23,7 @@
 - Email verification / password recovery.
 - PostGIS и точные геозапросы.
 - Marketplace, AI assistant, realtime-функции — только как будущие/placeholder-направления.
-- Frontend autotests пока не настроены.
+- Полноценный список подписок и редактирование профиля.
 
 ## Технологии
 
@@ -87,7 +87,9 @@
 - Node.js LTS
 - npm
 - Go 1.26+
-- Docker и Docker Compose
+- PostgreSQL 17: напрямую либо через Docker и Docker Compose
+
+Для Windows настроен запуск без Docker: [локальные инструменты, запуск и тесты](docs/LOCAL_DEVELOPMENT.md). Скрипты создают отдельную тестовую базу и хранят данные PostgreSQL вне OneDrive.
 
 ### 1. Запустить PostgreSQL
 
@@ -162,7 +164,7 @@ Vite обычно откроется на `http://localhost:5173`.
 Frontend отправляет запросы на same-origin `/api/v1`; в dev-режиме Vite проксирует их на backend. Цель прокси можно переопределить через `apps/web/.env`:
 
 ```env
-VITE_API_PROXY=http://localhost:8080
+VITE_API_PROXY=http://127.0.0.1:8080
 ```
 
 ## Команды разработки
@@ -176,6 +178,8 @@ npm run dev        # dev server
 npm run build      # TypeScript build + Vite build
 npm run typecheck  # TypeScript check
 npm run preview    # preview production build
+npm run test       # Vitest: регрессии кэша и загрузки страниц
+npm run test:e2e   # Playwright: UI, 393px и 1440px, клавиатура
 ```
 
 ### Backend
@@ -197,6 +201,8 @@ make db-down          # остановить PostgreSQL
 ## API
 
 Базовый путь API: `/api/v1`.
+
+Актуальные особенности DTO, авторизации, ограничений и незавершённых функций описаны в [docs/API_NOTES.md](docs/API_NOTES.md). Для frontend используются Vitest/Testing Library и Playwright. Backend содержит unit tests и PostgreSQL integration tests с изолированными схемами (`-tags=integration`, переменная `KLEVLIGA_TEST_DATABASE_URL`).
 
 Основные группы endpoints:
 

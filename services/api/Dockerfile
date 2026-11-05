@@ -9,7 +9,6 @@ FROM alpine:3.22
 RUN apk add --no-cache ca-certificates
 COPY --from=build /out/klevliga /bin/app
 COPY config.docker.yaml /app/config.yaml
-COPY api /api
 EXPOSE 8080
 ENTRYPOINT ["/bin/app"]
 CMD ["-c", "/app/config.yaml"]
