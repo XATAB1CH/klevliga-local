@@ -4,6 +4,10 @@ dist/
 .env.local
 .DS_Store
 *.log
+*.tsbuildinfo
+playwright-report/
+test-results/
+.local/
 .idea/
 .vscode/*
 !.vscode/extensions.json
