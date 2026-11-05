@@ -41,7 +41,7 @@ func (h *Handler) getFeed(w http.ResponseWriter, r *http.Request) {
 
 	var next *string
 	if len(items) > int(limit) {
-		last := items[int(limit)].Topic
+		last := items[int(limit)-1].Topic
 		next = strPtr(encodeTimeCursor(last.LastActivityAt, last.ID))
 		items = items[:limit]
 	}

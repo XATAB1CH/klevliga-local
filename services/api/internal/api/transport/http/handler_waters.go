@@ -35,7 +35,7 @@ func (h *Handler) listWaters(w http.ResponseWriter, r *http.Request) {
 
 	var next *string
 	if len(waters) > int(limit) {
-		last := waters[int(limit)]
+		last := waters[int(limit)-1]
 		next = strPtr(encodeWaterCursor(last.Name, last.ID))
 		waters = waters[:limit]
 	}

@@ -36,7 +36,7 @@ func (h *Handler) listReports(w http.ResponseWriter, r *http.Request) {
 
 	var next *string
 	if len(reports) > int(limit) {
-		last := reports[int(limit)]
+		last := reports[int(limit)-1]
 		next = strPtr(encodeTimeCursor(last.CreatedAt, last.ID))
 		reports = reports[:limit]
 	}

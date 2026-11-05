@@ -84,7 +84,7 @@ func (h *Handler) listNotifications(w http.ResponseWriter, r *http.Request) {
 
 	var next *string
 	if len(notifications) > int(limit) {
-		last := notifications[int(limit)]
+		last := notifications[int(limit)-1]
 		next = strPtr(encodeTimeCursor(last.CreatedAt, last.ID))
 		notifications = notifications[:limit]
 	}

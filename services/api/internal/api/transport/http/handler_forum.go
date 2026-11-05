@@ -46,7 +46,7 @@ func (h *Handler) listTopics(w http.ResponseWriter, r *http.Request) {
 
 	var next *string
 	if len(topics) > int(limit) {
-		last := topics[int(limit)]
+		last := topics[int(limit)-1]
 		next = strPtr(encodeTimeCursor(last.LastActivityAt, last.ID))
 		topics = topics[:limit]
 	}
@@ -129,7 +129,7 @@ func (h *Handler) listPosts(w http.ResponseWriter, r *http.Request) {
 
 	var next *string
 	if len(posts) > int(limit) {
-		last := posts[int(limit)]
+		last := posts[int(limit)-1]
 		next = strPtr(encodeTimeCursor(last.CreatedAt, last.ID))
 		posts = posts[:limit]
 	}
