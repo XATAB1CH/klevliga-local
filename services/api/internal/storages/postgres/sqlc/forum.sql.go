@@ -304,6 +304,7 @@ SELECT tp.id, tp.topic_id, tp.author_id, tp.body, tp.parent_post_id, tp.created_
 FROM topic_posts tp
 WHERE tp.topic_id = $1
   AND tp.deleted_at IS NULL
+  AND EXISTS (SELECT 1 FROM topics t WHERE t.id = tp.topic_id AND t.deleted_at IS NULL)
   AND (
     $2::timestamptz IS NULL
     OR (tp.created_at, tp.id) > ($2::timestamptz, $3::uuid)

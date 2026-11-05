@@ -61,6 +61,7 @@ const getReport = `-- name: GetReport :one
 SELECT r.id, r.author_id, r.topic_id, r.water_id, r.title, r.body, r.fished_at, r.location_visibility, r.species, r.created_at,
        (SELECT p.display_name FROM user_profiles p WHERE p.user_id = r.author_id) AS author_name
 FROM reports r
+JOIN topics t ON t.id = r.topic_id AND t.deleted_at IS NULL
 WHERE r.id = $1
 `
 
@@ -101,6 +102,7 @@ const getReportByTopic = `-- name: GetReportByTopic :one
 SELECT r.id, r.author_id, r.topic_id, r.water_id, r.title, r.body, r.fished_at, r.location_visibility, r.species, r.created_at,
        (SELECT p.display_name FROM user_profiles p WHERE p.user_id = r.author_id) AS author_name
 FROM reports r
+JOIN topics t ON t.id = r.topic_id AND t.deleted_at IS NULL
 WHERE r.topic_id = $1
 `
 
@@ -141,6 +143,7 @@ const listReports = `-- name: ListReports :many
 SELECT r.id, r.author_id, r.topic_id, r.water_id, r.title, r.body, r.fished_at, r.location_visibility, r.species, r.created_at,
        (SELECT p.display_name FROM user_profiles p WHERE p.user_id = r.author_id) AS author_name
 FROM reports r
+JOIN topics t ON t.id = r.topic_id AND t.deleted_at IS NULL
 WHERE ($1::uuid IS NULL OR r.water_id = $1)
   AND (
     $2::timestamptz IS NULL
@@ -212,6 +215,7 @@ const searchReports = `-- name: SearchReports :many
 SELECT r.id, r.author_id, r.topic_id, r.water_id, r.title, r.body, r.fished_at, r.location_visibility, r.species, r.created_at,
        (SELECT p.display_name FROM user_profiles p WHERE p.user_id = r.author_id) AS author_name
 FROM reports r
+JOIN topics t ON t.id = r.topic_id AND t.deleted_at IS NULL
 WHERE r.title ILIKE '%' || $1 || '%' OR r.body ILIKE '%' || $1 || '%'
 ORDER BY r.created_at DESC
 LIMIT $2

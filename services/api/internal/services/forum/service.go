@@ -114,6 +114,10 @@ func (s *Service) ListPosts(
 	cursorID *uuid.UUID,
 	limit int32,
 ) ([]*forum.Post, error) {
+	if _, err := s.store.GetTopic(ctx, topicID); err != nil {
+		return nil, err
+	}
+
 	return s.store.ListPosts(ctx, repo.ListPostsFilter{
 		TopicID:  topicID,
 		CursorAt: cursorAt,

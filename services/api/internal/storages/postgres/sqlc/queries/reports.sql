@@ -7,18 +7,21 @@ RETURNING *;
 SELECT r.*,
        (SELECT p.display_name FROM user_profiles p WHERE p.user_id = r.author_id) AS author_name
 FROM reports r
+JOIN topics t ON t.id = r.topic_id AND t.deleted_at IS NULL
 WHERE r.id = $1;
 
 -- name: GetReportByTopic :one
 SELECT r.*,
        (SELECT p.display_name FROM user_profiles p WHERE p.user_id = r.author_id) AS author_name
 FROM reports r
+JOIN topics t ON t.id = r.topic_id AND t.deleted_at IS NULL
 WHERE r.topic_id = $1;
 
 -- name: ListReports :many
 SELECT r.*,
        (SELECT p.display_name FROM user_profiles p WHERE p.user_id = r.author_id) AS author_name
 FROM reports r
+JOIN topics t ON t.id = r.topic_id AND t.deleted_at IS NULL
 WHERE (sqlc.narg('water_id')::uuid IS NULL OR r.water_id = sqlc.narg('water_id'))
   AND (
     sqlc.narg('cursor_at')::timestamptz IS NULL
@@ -31,6 +34,7 @@ LIMIT sqlc.arg('limit');
 SELECT r.*,
        (SELECT p.display_name FROM user_profiles p WHERE p.user_id = r.author_id) AS author_name
 FROM reports r
+JOIN topics t ON t.id = r.topic_id AND t.deleted_at IS NULL
 WHERE r.title ILIKE '%' || $1 || '%' OR r.body ILIKE '%' || $1 || '%'
 ORDER BY r.created_at DESC
 LIMIT $2;

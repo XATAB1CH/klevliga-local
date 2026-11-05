@@ -1,0 +1,207 @@
+//go:build integration
+
+package http
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"errors"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pressly/goose/v3"
+
+	"github.com/XATAB1CH/klev-liga/internal/app/provider"
+	"github.com/XATAB1CH/klev-liga/internal/config"
+	"github.com/XATAB1CH/klev-liga/internal/domains/apperr"
+	reportDomain "github.com/XATAB1CH/klev-liga/internal/domains/report"
+	reportSvc "github.com/XATAB1CH/klev-liga/internal/services/report"
+	"github.com/XATAB1CH/klev-liga/internal/storages/postgres/repo"
+	"github.com/XATAB1CH/klev-liga/migrations"
+	"github.com/XATAB1CH/klev-liga/pkg/pg"
+)
+
+type integrationAPI struct {
+	pool     *pgxpool.Pool
+	provider *provider.Provider
+	server   *httptest.Server
+	userID   uuid.UUID
+	cookie   *http.Cookie
+}
+
+// Each test owns a fresh schema; the configured database's existing tables and
+// records are never truncated or reused. An explicitly configured but unusable
+// database fails the test rather than silently skipping it.
+func newIntegrationAPI(t *testing.T) *integrationAPI {
+	t.Helper()
+	dsn := os.Getenv("KLEVLIGA_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("set KLEVLIGA_TEST_DATABASE_URL to run PostgreSQL integration tests")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	admin, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(admin.Close)
+	// Keep database-wide extensions outside the disposable schema so its
+	// cleanup cannot remove extension objects used by another schema.
+	for _, extension := range []string{"citext", "pgcrypto"} {
+		if _, err := admin.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS "+extension+" WITH SCHEMA public"); err != nil {
+			t.Fatalf("prepare %s extension: %v", extension, err)
+		}
+	}
+	schema := "klevliga_test_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	quotedSchema := pgx.Identifier{schema}.Sanitize()
+	if _, err := admin.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
+		t.Fatalf("create isolated schema: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cleanupCancel()
+		if _, err := admin.Exec(cleanupCtx, "DROP SCHEMA "+quotedSchema+" CASCADE"); err != nil {
+			t.Errorf("drop isolated schema: %v", err)
+		}
+	})
+	poolConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	poolConfig.ConnConfig.RuntimeParams["search_path"] = schema + ",public"
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pg.MigrateFromPool(ctx, pool, migrations.Migrations, goose.WithTableName(schema+".goose_db_version")); err != nil {
+		t.Fatalf("migrate isolated schema: %v", err)
+	}
+	cfg := &config.Config{Auth: config.Auth{SessionTTL: time.Hour, CookieName: "test_session"}}
+	p := provider.NewProvider(cfg, pool)
+	h := NewHandler(p.AuthService(), p.ForumService(), p.ReportService(), p.WaterService(), p.FeedService(), p.SearchService(), p.SocialService(), p.ModerationService(), cfg.Auth.CookieName, false, "", time.Hour)
+	s := NewServer(h, ":0", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	server := httptest.NewServer(s.server.Handler)
+	t.Cleanup(server.Close)
+	a := &integrationAPI{pool: pool, provider: p, server: server}
+	a.userID, a.cookie = a.newUser(t)
+	return a
+}
+
+func (a *integrationAPI) newUser(t *testing.T) (uuid.UUID, *http.Cookie) {
+	t.Helper()
+	ctx := context.Background()
+	name := "user_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	userID, err := a.provider.Store().CreateUser(ctx, name+"@example.test", name, "unused-test-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.provider.Store().CreateProfile(ctx, userID, name); err != nil {
+		t.Fatal(err)
+	}
+	token := uuid.NewString()
+	hash := sha256.Sum256([]byte(token))
+	if _, err := a.provider.Store().CreateSession(ctx, userID, hash[:], time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	return userID, &http.Cookie{Name: "test_session", Value: token}
+}
+
+func (a *integrationAPI) request(t *testing.T, method, path string, payload any, cookie *http.Cookie) (int, []byte) {
+	t.Helper()
+	var body io.Reader
+	if payload != nil {
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body = strings.NewReader(string(encoded))
+	}
+	req, err := http.NewRequest(method, a.server.URL+"/api/v1"+path, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if cookie != nil {
+		req.AddCookie(cookie)
+	}
+	resp, err := a.server.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp.StatusCode, data
+}
+
+func (a *integrationAPI) report(t *testing.T, title string) *reportDomain.Report {
+	t.Helper()
+	r, err := a.provider.ReportService().Create(context.Background(), reportSvc.CreateParams{
+		AuthorID: a.userID, Title: title, Body: "Описание рыбалки", FishedAt: time.Now(),
+		LocationVisibility: reportDomain.LocationVisibilityWaterOnly, Species: []string{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
+func TestDeletedTopicHidesPostsAndReports(t *testing.T) {
+	a := newIntegrationAPI(t)
+	ctx := context.Background()
+	query := "visibility" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	deleted := a.report(t, query+" удалённый отчёт")
+	visible := a.report(t, query+" открытый отчёт")
+	if _, err := a.provider.ForumService().CreatePost(ctx, deleted.TopicID, a.userID, "Скрываемый ответ", nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/reports/" + deleted.ID.String(), "/forum/topics/" + deleted.TopicID.String() + "/posts"} {
+		if status, data := a.request(t, http.MethodGet, path, nil, nil); status != http.StatusOK {
+			t.Fatalf("before deletion GET %s: %d %s", path, status, data)
+		}
+	}
+	if _, err := a.pool.Exec(ctx, "UPDATE topics SET deleted_at = now() WHERE id = $1", deleted.TopicID); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/reports/" + deleted.ID.String(), "/forum/topics/" + deleted.TopicID.String(), "/forum/topics/" + deleted.TopicID.String() + "/posts", "/forum/topics/" + uuid.NewString() + "/posts"} {
+		if status, data := a.request(t, http.MethodGet, path, nil, nil); status != http.StatusNotFound {
+			t.Errorf("GET %s: got %d, want 404: %s", path, status, data)
+		}
+	}
+	for _, path := range []string{"/reports", "/forum/topics", "/feed", "/feed?kind=report", "/search?q=" + url.QueryEscape(query)} {
+		status, data := a.request(t, http.MethodGet, path, nil, nil)
+		if status != http.StatusOK || !json.Valid(data) {
+			t.Fatalf("GET %s: %d %s", path, status, data)
+		}
+		if strings.Contains(string(data), deleted.ID.String()) || strings.Contains(string(data), deleted.TopicID.String()) {
+			t.Errorf("GET %s leaked a deleted report/topic: %s", path, data)
+		}
+		if !strings.Contains(string(data), visible.ID.String()) && !strings.Contains(string(data), visible.TopicID.String()) {
+			t.Errorf("GET %s omitted the visible report/topic: %s", path, data)
+		}
+	}
+	// Repository checks protect callers that bypass the HTTP-level topic check.
+	posts, err := a.provider.Store().ListPosts(ctx, repo.ListPostsFilter{TopicID: deleted.TopicID, Limit: 20})
+	if err != nil || len(posts) != 0 {
+		t.Errorf("repository returned deleted topic posts: %v, %v", posts, err)
+	}
+	if _, err := a.provider.Store().GetReportByTopic(ctx, deleted.TopicID); !errors.Is(err, apperr.ErrNotFound) {
+		t.Errorf("GetReportByTopic: got %v, want not found", err)
+	}
+}

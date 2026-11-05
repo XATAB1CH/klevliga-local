@@ -77,6 +77,7 @@ SELECT tp.*,
 FROM topic_posts tp
 WHERE tp.topic_id = sqlc.arg('topic_id')
   AND tp.deleted_at IS NULL
+  AND EXISTS (SELECT 1 FROM topics t WHERE t.id = tp.topic_id AND t.deleted_at IS NULL)
   AND (
     sqlc.narg('cursor_at')::timestamptz IS NULL
     OR (tp.created_at, tp.id) > (sqlc.narg('cursor_at')::timestamptz, sqlc.narg('cursor_id')::uuid)
