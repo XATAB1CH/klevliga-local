@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { NavLink, Route, Routes } from 'react-router-dom';
+import { NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import { Home, MapPin, MessageSquare, Plus, Users } from 'lucide-react';
 import { AuthDialog } from './components/AuthDialog';
 import { CreateTopicDialog } from './components/CreateTopicDialog';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
-import { TopicDialog } from './components/TopicDialog';
+import { errorMessage } from './components/QueryState';
 import { useFollow } from './api/hooks';
 import { useAuth } from './auth/AuthContext';
 import type { Topic } from './api/types';
@@ -18,12 +18,16 @@ import { SearchResultsPage } from './pages/SearchResultsPage';
 import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import { WaterPage } from './pages/WaterPage';
 import { WatersPage } from './pages/WatersPage';
+import { TopicPage } from './pages/TopicPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 export default function App() {
   const [menu, setMenu] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
-  const [selected, setSelected] = useState<Topic | null>(null);
+  const [followNotice, setFollowNotice] = useState<{ text: string; error: boolean } | null>(null);
+  const navigate = useNavigate();
+  const openTopic = (topic: Topic) => navigate(`/forum/topics/${topic.id}`);
   const { isAuthenticated } = useAuth();
   const follow = useFollow();
 
@@ -37,7 +41,11 @@ export default function App() {
       setAuthOpen(true);
       return;
     }
-    follow.mutate({ targetType: 'topic', targetId: topic.id });
+    setFollowNotice(null);
+    follow.mutate({ targetType: 'topic', targetId: topic.id }, {
+      onSuccess: () => setFollowNotice({ text: 'Подписка сохранена. Новые ответы появятся в уведомлениях.', error: false }),
+      onError: (error) => setFollowNotice({ text: errorMessage(error, 'Не удалось подписаться. Попробуйте ещё раз.'), error: true }),
+    });
   };
 
   return (
@@ -45,21 +53,25 @@ export default function App() {
       <Header menuOpen={menu} onMenuToggle={() => setMenu((v) => !v)} />
       <div className="app-grid">
         {menu && <button className="drawer-backdrop" onClick={() => setMenu(false)} aria-label="Закрыть меню" />}
-        <aside className={`sidebar ${menu ? 'opened' : ''}`}><Sidebar close={() => setMenu(false)} /></aside>
+        <aside id="site-sidebar" className={`sidebar ${menu ? 'opened' : ''}`}><Sidebar close={() => setMenu(false)} /></aside>
         <main className="main">
+          {followNotice && <div className="action-notice" role={followNotice.error ? 'alert' : 'status'}>{followNotice.text}
+            <button type="button" className="icon-btn" onClick={() => setFollowNotice(null)} aria-label="Скрыть сообщение">×</button>
+          </div>}
           <Routes>
-            <Route path="/" element={<HomePage onOpen={setSelected} onFollow={handleFollow} onNew={handleNew} />} />
-            <Route path="/forum" element={<ForumPage onOpen={setSelected} onFollow={handleFollow} onNew={handleNew} />} />
+            <Route path="/" element={<HomePage onOpen={openTopic} onFollow={handleFollow} onNew={handleNew} />} />
+            <Route path="/forum" element={<ForumPage onOpen={openTopic} onFollow={handleFollow} onNew={handleNew} />} />
+            <Route path="/forum/topics/:id" element={<TopicPage />} />
             <Route path="/waters" element={<WatersPage />} />
             <Route path="/waters/:id" element={<WaterPage />} />
-            <Route path="/search" element={<SearchResultsPage onOpen={setSelected} onFollow={handleFollow} />} />
+            <Route path="/search" element={<SearchResultsPage onOpen={openTopic} onFollow={handleFollow} />} />
             <Route path="/profile" element={<ProfilePage onLogin={() => setAuthOpen(true)} />} />
             <Route path="/notifications" element={<NotificationsPage onLogin={() => setAuthOpen(true)} />} />
             <Route path="/subscriptions" element={<SubscriptionsPage />} />
             <Route path="/knowledge" element={<Placeholder section="База знаний" />} />
             <Route path="/market" element={<Placeholder section="Барахолка" />} />
             <Route path="/assistant" element={<Placeholder section="КлёвЛига AI" />} />
-            <Route path="*" element={<Placeholder section="Страница не найдена" />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </main>
       </div>
@@ -72,7 +84,6 @@ export default function App() {
       </nav>
       {createOpen && <CreateTopicDialog onClose={() => setCreateOpen(false)} />}
       {authOpen && <AuthDialog onClose={() => setAuthOpen(false)} />}
-      {selected && <TopicDialog topic={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }

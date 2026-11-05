@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Camera, ChevronDown, Flame, Heart, Map as MapIcon, MapPin, MessageCircle, Plus, Search, Waves } from 'lucide-react';
-import { useFeed, useWaters } from '../api/hooks';
+import { ArrowRight, Camera, ChevronDown, Flame, Map as MapIcon, Plus, Search, Waves } from 'lucide-react';
+import { useInfiniteFeed, useWaters } from '../api/hooks';
 import type { Topic } from '../api/types';
 import { PostCard } from '../components/PostCard';
 import { waterKindLabel } from '../lib/format';
+import { ErrorNotice, Loading, LoadMore } from '../components/QueryState';
 
 const pills = ['Все', 'Отчёты', 'Популярные'] as const;
 
@@ -20,15 +21,16 @@ export function HomePage({ onOpen, onFollow, onNew }: Props) {
   const { data: watersPage } = useWaters({ limit: 4 });
 
   const kind = tab === 'Отчёты' ? 'report' : 'all';
-  const { data: feed, isLoading } = useFeed({ kind, limit: 50 });
+  const feed = useInfiniteFeed({ kind, limit: 20 });
+  const loadedItems = useMemo(() => feed.data?.pages.flatMap((page) => page.items) ?? [], [feed.data]);
 
   const items = useMemo(() => {
-    const src = feed?.items ?? [];
+    const src = loadedItems;
     const popular = sort === 'популярные' || tab === 'Популярные';
     return popular
       ? [...src].sort((a, b) => b.topic.replies_count - a.topic.replies_count)
       : src;
-  }, [feed, sort, tab]);
+  }, [loadedItems, sort, tab]);
 
   return (
     <div className="three-col">
@@ -50,10 +52,13 @@ export function HomePage({ onOpen, onFollow, onNew }: Props) {
             </div>
             <button className="sort-control" onClick={() => setSort((x) => (x === 'новые' ? 'популярные' : 'новые'))}>Сначала {sort}<ChevronDown size={16} /></button>
           </div>
-          {isLoading && <div className="empty">Загрузка…</div>}
-          {!isLoading && items.length === 0 && <div className="empty"><Search />Пока нет публикаций. Создайте первую тему.</div>}
+          {(sort === 'популярные' || tab === 'Популярные') && <p className="search-note">По числу ответов среди загруженных тем.</p>}
+          {feed.isPending && <Loading />}
+          {feed.isError && <ErrorNotice error={feed.error} retry={feed.refetch} />}
+          {!feed.isPending && !feed.isError && items.length === 0 && <div className="empty"><Search />Пока нет публикаций. Создайте первую тему.</div>}
           {items.map((it) => <PostCard key={it.topic.id} topic={it.topic} onOpen={onOpen} onFollow={onFollow} />)}
-          <div className="feed-bottom"><span>Лента подключена к Go API · /api/v1</span><button onClick={onNew}>Новая тема <Plus size={16} /></button></div>
+          <LoadMore {...feed} />
+          <div className="feed-bottom"><span>Обсуждения сообщества</span><button onClick={onNew}>Новая тема <Plus size={16} /></button></div>
         </section>
       </div>
 
@@ -63,13 +68,13 @@ export function HomePage({ onOpen, onFollow, onNew }: Props) {
           <img src="/images/sunset-photo.jpg" className="photo-day" alt="Закат на озере" />
           <b className="photo-name">Вечер на озере</b>
           <div className="muted tiny">Фото сообщества · Авторский снимок</div>
-          <div className="mini-social"><Heart size={16} /> 256 <MessageCircle size={16} /> 18 <MapPin size={15} /> Московская область</div>
+          <div className="mini-social">Иллюстративное фото · место съёмки не указано</div>
         </section>
 
         <section className="widget">
           <div className="widget-title"><h3><Flame size={19} className="hot" /> Популярные темы</h3><Link to="/forum">Все темы <ArrowRight size={14} /></Link></div>
           <div className="top-list">
-            {[...(feed?.items ?? [])].sort((a, b) => b.topic.replies_count - a.topic.replies_count).slice(0, 5).map((it, i) => (
+            {[...loadedItems].sort((a, b) => b.topic.replies_count - a.topic.replies_count).slice(0, 5).map((it, i) => (
               <button key={it.topic.id} onClick={() => onOpen(it.topic)}>
                 <span>{i + 1}</span>
                 <div>{it.topic.title}<small>{it.topic.replies_count} ответов</small></div>

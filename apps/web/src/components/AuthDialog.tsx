@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { X } from 'lucide-react';
-import { ApiError } from '../api/client';
+import { useState, type FormEvent } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { Dialog } from './Dialog';
+import { errorMessage } from './QueryState';
 
 export function AuthDialog({ onClose }: { onClose: () => void }) {
   const { login, register } = useAuth();
@@ -10,43 +10,43 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  const submit = async () => {
-    setError(null);
-    setBusy(true);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (busy) return;
+    setError(null); setBusy(true);
     try {
-      if (mode === 'login') await login(email, password);
-      else await register(email, username, password);
-      onClose();
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось выполнить действие');
-    } finally {
-      setBusy(false);
-    }
+      if (mode === 'login') { await login(email.trim(), password); onClose(); }
+      else {
+        await register(email.trim(), username.trim(), password);
+        setMode('login'); setPassword('');
+        setNotice('Аккаунт создан. Войдите с вашим email и паролем.');
+      }
+    } catch (e) { setError(errorMessage(e, 'Не удалось выполнить действие. Проверьте соединение и попробуйте ещё раз.')); }
+    finally { setBusy(false); }
   };
-
-  const canSubmit = !!email && !!password && (mode === 'login' || username.length >= 3);
-
-  return (
-    <div className="overlay" onMouseDown={onClose} role="presentation">
-      <div className="dialog" role="dialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="dialog-head">
-          <h2>{mode === 'login' ? 'Вход' : 'Регистрация'}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="Закрыть"><X /></button>
-        </div>
-        <div className="choices">
-          <button className={mode === 'login' ? 'choice active' : 'choice'} onClick={() => { setMode('login'); setError(null); }}>Вход</button>
-          <button className={mode === 'register' ? 'choice active' : 'choice'} onClick={() => { setMode('register'); setError(null); }}>Регистрация</button>
-        </div>
-        <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></label>
-        {mode === 'register' && <label>Ник (от 3 символов)<input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Рыболов" /></label>}
-        <label>Пароль (от 12 символов)<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" /></label>
-        {error && <p className="muted">{error}</p>}
-        <button className="primary-btn" disabled={busy || !canSubmit} onClick={submit}>
-          {mode === 'login' ? 'Войти' : 'Создать аккаунт'}
-        </button>
-      </div>
+  return <Dialog title={mode === 'login' ? 'Вход' : 'Регистрация'} onClose={onClose}>
+    <div className="choices" aria-label="Вход или регистрация">
+      <button type="button" className={mode === 'login' ? 'choice active' : 'choice'} disabled={busy}
+        onClick={() => { setMode('login'); setError(null); setNotice(null); }}>Вход</button>
+      <button type="button" className={mode === 'register' ? 'choice active' : 'choice'} disabled={busy}
+        onClick={() => { setMode('register'); setError(null); setNotice(null); }}>Регистрация</button>
     </div>
-  );
+    {notice && <p className="success-message" role="status">{notice}</p>}
+    <form onSubmit={(event) => { void submit(event); }}><fieldset disabled={busy}>
+      <label>Email<input data-autofocus type="email" required maxLength={254} autoComplete="email" value={email}
+        onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></label>
+      {mode === 'register' && <label>Ник (3–32 символа)<input required minLength={3} maxLength={32} autoComplete="username"
+        value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Рыболов" /></label>}
+      <label>{mode === 'register' ? 'Пароль (12–128 символов)' : 'Пароль'}<input type="password" required
+        minLength={mode === 'register' ? 12 : undefined} maxLength={128}
+        autoComplete={mode === 'register' ? 'new-password' : 'current-password'} value={password}
+        onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" /></label>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <button type="submit" className="primary-btn" disabled={busy}>
+        {busy ? 'Подождите…' : mode === 'login' ? 'Войти' : 'Создать аккаунт'}
+      </button>
+    </fieldset></form>
+  </Dialog>;
 }

@@ -18,7 +18,7 @@ export class ApiError extends Error {
   }
 }
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+async function apiFetch<T>(path: string, init?: RequestInit, expectJson = true): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     credentials: 'include',
     ...init,
@@ -36,7 +36,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
       body?.error?.message ?? res.statusText,
     );
   }
-
+  if (!expectJson) return undefined as T;
+  if (body === null) {
+    throw new ApiError(res.status, 'INVALID_RESPONSE', 'Сервер вернул непонятный ответ. Попробуйте ещё раз.');
+  }
   return body as T;
 }
 
@@ -62,24 +65,24 @@ function json<T>(path: string, method: string, body: unknown): Promise<T> {
 
 export const api = {
   // Auth
-  getMe: () => apiFetch<User>('/auth/me'),
+  getMe: (signal?: AbortSignal) => apiFetch<User>('/auth/me', { signal }),
   login: (email: string, password: string) => apiFetch<void>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-  register: (email: string, username: string, password: string) => apiFetch<void>('/auth/register', { method: 'POST', body: JSON.stringify({ email, username, password }) }),
+  register: (email: string, username: string, password: string) => apiFetch<void>('/auth/register', { method: 'POST', body: JSON.stringify({ email, username, password }) }, false),
   logout: () => apiFetch<void>('/auth/logout', { method: 'POST' }),
-  getUser: (id: string) => apiFetch<User>(`/users/${id}`),
+  getUser: (id: string, signal?: AbortSignal) => apiFetch<User>(`/users/${id}`, { signal }),
 
   // Reads
-  getFeed: (p: FeedParams = {}) => apiFetch<FeedPage>(`/feed${qs({ cursor: p.cursor, limit: p.limit, kind: p.kind === 'all' ? undefined : p.kind })}`),
-  getCategories: () => apiFetch<Category[]>('/forum/categories'),
-  getTopics: (p: TopicsParams = {}) => apiFetch<TopicPage>(`/forum/topics${qs({ cursor: p.cursor, limit: p.limit, category_id: p.category_id })}`),
-  getTopic: (id: string) => apiFetch<Topic>(`/forum/topics/${id}`),
-  getPosts: (topicId: string, p: { cursor?: string; limit?: number } = {}) => apiFetch<PostPage>(`/forum/topics/${topicId}/posts${qs({ cursor: p.cursor, limit: p.limit })}`),
-  getReports: (p: ReportsParams = {}) => apiFetch<ReportPage>(`/reports${qs({ cursor: p.cursor, limit: p.limit, water_id: p.water_id })}`),
-  getReport: (id: string) => apiFetch<Report>(`/reports/${id}`),
-  getWaters: (p: WatersParams = {}) => apiFetch<WaterPage>(`/waters${qs({ cursor: p.cursor, limit: p.limit, q: p.q, region_id: p.region_id })}`),
-  getWater: (id: string) => apiFetch<Water>(`/waters/${id}`),
-  search: (p: SearchParams) => apiFetch<SearchResults>(`/search${qs({ q: p.q, type: p.type, limit: p.limit })}`),
-  getNotifications: (p: { cursor?: string; limit?: number } = {}) => apiFetch<NotificationPage>(`/notifications${qs({ cursor: p.cursor, limit: p.limit })}`),
+  getFeed: (p: FeedParams = {}, signal?: AbortSignal) => apiFetch<FeedPage>(`/feed${qs({ cursor: p.cursor, limit: p.limit, kind: p.kind === 'all' ? undefined : p.kind })}`, { signal }),
+  getCategories: (signal?: AbortSignal) => apiFetch<Category[]>('/forum/categories', { signal }),
+  getTopics: (p: TopicsParams = {}, signal?: AbortSignal) => apiFetch<TopicPage>(`/forum/topics${qs({ cursor: p.cursor, limit: p.limit, category_id: p.category_id })}`, { signal }),
+  getTopic: (id: string, signal?: AbortSignal) => apiFetch<Topic>(`/forum/topics/${id}`, { signal }),
+  getPosts: (topicId: string, p: { cursor?: string; limit?: number } = {}, signal?: AbortSignal) => apiFetch<PostPage>(`/forum/topics/${topicId}/posts${qs({ cursor: p.cursor, limit: p.limit })}`, { signal }),
+  getReports: (p: ReportsParams = {}, signal?: AbortSignal) => apiFetch<ReportPage>(`/reports${qs({ cursor: p.cursor, limit: p.limit, water_id: p.water_id })}`, { signal }),
+  getReport: (id: string, signal?: AbortSignal) => apiFetch<Report>(`/reports/${id}`, { signal }),
+  getWaters: (p: WatersParams = {}, signal?: AbortSignal) => apiFetch<WaterPage>(`/waters${qs({ cursor: p.cursor, limit: p.limit, q: p.q, region_id: p.region_id })}`, { signal }),
+  getWater: (id: string, signal?: AbortSignal) => apiFetch<Water>(`/waters/${id}`, { signal }),
+  search: (p: SearchParams, signal?: AbortSignal) => apiFetch<SearchResults>(`/search${qs({ q: p.q, type: p.type, limit: p.limit })}`, { signal }),
+  getNotifications: (p: { cursor?: string; limit?: number } = {}, signal?: AbortSignal) => apiFetch<NotificationPage>(`/notifications${qs({ cursor: p.cursor, limit: p.limit })}`, { signal }),
 
   // Writes
   createTopic: (categoryId: string, title: string, body: string) => json<Topic>('/forum/topics', 'POST', { category_id: categoryId, title, body }),
@@ -87,5 +90,5 @@ export const api = {
   createReport: (p: { title: string; body: string; water_id?: string | null; fished_at: string; location_visibility: string; species: string[] }) => json<Report>('/reports', 'POST', p),
   follow: (targetType: string, targetId: string) => apiFetch<void>('/follows', { method: 'POST', body: JSON.stringify({ target_type: targetType, target_id: targetId }) }),
   unfollow: (targetType: string, targetId: string) => apiFetch<void>(`/follows/${targetType}/${targetId}`, { method: 'DELETE' }),
-  flag: (targetType: string, targetId: string, reason: string) => apiFetch<void>('/moderation/flags', { method: 'POST', body: JSON.stringify({ target_type: targetType, target_id: targetId, reason }) }),
+  flag: (targetType: string, targetId: string, reason: string) => apiFetch<void>('/moderation/flags', { method: 'POST', body: JSON.stringify({ target_type: targetType, target_id: targetId, reason }) }, false),
 };
