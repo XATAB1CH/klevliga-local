@@ -184,4 +184,35 @@ describe('session and personal data', () => {
     await waitFor(() => expect(result.current.data).toBeNull());
     expect(client.getQueryData(['private', 'alice', 'notifications'])).toBeUndefined();
   });
+
+  it('does not let a cancelled profile request erase the next account personal cache', async () => {
+    const staleProfile = deferred<User>();
+    let staleSignal: AbortSignal | undefined;
+    vi.mocked(api.getMe).mockImplementationOnce((signal) => {
+      staleSignal = signal;
+      return staleProfile.promise;
+    }).mockResolvedValue(makeUser('bob'));
+    vi.spyOn(api, 'getNotifications')
+      .mockResolvedValueOnce(notificationPage('alice-private'))
+      .mockResolvedValueOnce(notificationPage('bob-private'));
+    vi.spyOn(api, 'logout').mockResolvedValue(undefined);
+    vi.spyOn(api, 'login').mockResolvedValue(undefined);
+    const { client, wrapper } = setup(makeUser('alice'));
+    const { result } = renderHook(() => ({ me: useMe(), notifications: useNotifications(), login: useLogin(), logout: useLogout() }), { wrapper });
+    await waitFor(() => expect(result.current.notifications.data?.items[0].title).toBe('alice-private'));
+    let oldRequest!: Promise<unknown>;
+    act(() => { oldRequest = result.current.me.refetch(); });
+    await waitFor(() => expect(staleSignal).toBeDefined());
+
+    await act(async () => { await result.current.logout.mutateAsync(); await oldRequest; });
+    await act(async () => { await result.current.login.mutateAsync({ email: 'bob@example.com', password: 'a-valid-password' }); });
+    await waitFor(() => expect(result.current.notifications.data?.items[0].title).toBe('bob-private'));
+    const bobCache = client.getQueriesData({ queryKey: ['private', 'bob'] });
+    expect(bobCache.length).toBeGreaterThan(0);
+    expect(staleSignal?.aborted).toBe(true);
+
+    await act(async () => { staleProfile.resolve(makeUser('alice')); await staleProfile.promise; });
+    expect(client.getQueryData<User>(['me'])?.id).toBe('bob');
+    expect(client.getQueriesData({ queryKey: ['private', 'bob'] })).toEqual(bobCache);
+  });
 });
