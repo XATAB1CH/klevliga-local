@@ -69,7 +69,9 @@ func (h *Handler) createTopic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.CategoryID == uuid.Nil || len(req.Title) < 5 || req.Body == "" {
+	req.Title = normalizeText(req.Title)
+	req.Body = normalizeText(req.Body)
+	if req.CategoryID == uuid.Nil || !validTextLength(req.Title, titleMinLength, titleMaxLength) || !validTextLength(req.Body, 1, bodyMaxLength) {
 		writeError(w, r, apperr.ErrValidation)
 
 		return
@@ -159,7 +161,8 @@ func (h *Handler) reply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Body == "" {
+	req.Body = normalizeText(req.Body)
+	if !validTextLength(req.Body, 1, bodyMaxLength) {
 		writeError(w, r, apperr.ErrValidation)
 
 		return

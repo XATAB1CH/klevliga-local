@@ -1,11 +1,11 @@
 openapi: 3.0.3
 info:
   title: КлёвЛига MVP API
-  version: 0.1.0-draft
+  version: 0.1.0
   description: >-
-    Черновой контракт, а не реализованный Go API. Согласовать права, статусы и DTO с backend-разработчиком
-    до генерации frontend-клиента. По умолчанию публичные чтения разрешены без входа,
-    операции записи требуют server-side session cookie и CSRF-защиты.
+    Контракт существующего Go MVP API. Публичные чтения разрешены без входа,
+    операции записи требуют server-side session cookie. Загрузка медиа пока недоступна
+    и возвращает 501 NOT_IMPLEMENTED; непустой media_ids при создании отчёта также отклоняется.
 servers:
   - url: /api/v1
     description: Same-origin API via reverse proxy / Vite proxy
@@ -36,11 +36,11 @@ paths:
               type: object
               required: [email, username, password]
               properties:
-                email: {type: string, format: email}
+                email: {type: string, format: email, maxLength: 254}
                 username: {type: string, minLength: 3, maxLength: 32}
-                password: {type: string, minLength: 12}
+                password: {type: string, minLength: 12, maxLength: 128}
       responses:
-        '201': {description: Пользователь создан; требуется подтверждение email}
+        '201': {description: Пользователь создан без сессии; для входа вызвать POST /auth/login}
         '400': {$ref: '#/components/responses/BadRequest'}
         '409': {$ref: '#/components/responses/Conflict'}
   /auth/login:
@@ -56,8 +56,8 @@ paths:
               type: object
               required: [email, password]
               properties:
-                email: {type: string, format: email}
-                password: {type: string}
+                email: {type: string, format: email, maxLength: 254}
+                password: {type: string, maxLength: 128}
       responses:
         '204': {description: Cookie установлена}
         '401': {$ref: '#/components/responses/Unauthorized'}
@@ -107,9 +107,6 @@ paths:
         - name: kind
           in: query
           schema: {type: string, enum: [all, topic, report], default: all}
-        - name: region_id
-          in: query
-          schema: {type: string, format: uuid}
       responses:
         '200':
           description: Лента
@@ -250,6 +247,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/Report'}
         '401': {$ref: '#/components/responses/Unauthorized'}
+        '501': {$ref: '#/components/responses/NotImplemented'}
   /reports/{id}:
     get:
       tags: [Reports]
@@ -392,7 +390,7 @@ paths:
   /media/uploads:
     post:
       tags: [Media]
-      summary: Получить URL для загрузки файла
+      summary: Получить URL для загрузки файла (пока недоступно)
       operationId: createUpload
       security: [{sessionCookie: []}]
       requestBody:
@@ -407,8 +405,9 @@ paths:
                 mime: {type: string, enum: [image/jpeg, image/png, image/webp]}
                 size_bytes: {type: integer, format: int64, minimum: 1, maximum: 20971520}
       responses:
+        '501': {$ref: '#/components/responses/NotImplemented'}
         '201':
-          description: Временный URL на запись
+          description: Планируемый ответ после подключения хранилища (пока возвращается 501)
           content:
             application/json:
               schema:
@@ -421,14 +420,15 @@ paths:
   /media/uploads/{id}/complete:
     post:
       tags: [Media]
-      summary: Подтвердить завершение загрузки (фото проверяется и очищается от GPS EXIF)
+      summary: Подтвердить завершение загрузки (пока недоступно)
       operationId: completeUpload
       security: [{sessionCookie: []}]
       parameters:
         - {$ref: '#/components/parameters/Id'}
       responses:
+        '501': {$ref: '#/components/responses/NotImplemented'}
         '202':
-          description: Файл обрабатывается
+          description: Планируемый ответ после реализации проверки и очистки GPS EXIF (пока возвращается 501)
           content:
             application/json:
               schema:
@@ -477,6 +477,11 @@ components:
       in: query
       schema: {type: integer, minimum: 1, maximum: 100, default: 20}
   responses:
+    NotImplemented:
+      description: Функция пока недоступна; запрос не выполнен
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
     BadRequest:
       description: Некорректные входные данные
       content:
@@ -512,18 +517,18 @@ components:
             fields: {type: object, additionalProperties: {type: string}}
     User:
       type: object
-      required: [id, username, display_name]
+      required: [id, username, display_name, avatar_url, region, bio, joined_at]
       properties:
         id: {type: string, format: uuid}
         username: {type: string}
         display_name: {type: string}
         avatar_url: {type: string, format: uri, nullable: true}
-        region_id: {type: string, format: uuid, nullable: true}
+        region: {type: string, nullable: true, description: Название региона из публичного профиля}
         bio: {type: string, nullable: true}
         joined_at: {type: string, format: date-time}
     Category:
       type: object
-      required: [id, name, slug]
+      required: [id, name, slug, parent_id]
       properties:
         id: {type: string, format: uuid}
         name: {type: string}
@@ -531,7 +536,7 @@ components:
         parent_id: {type: string, format: uuid, nullable: true}
     Topic:
       type: object
-      required: [id, category_id, author_id, title, slug, created_at, last_activity_at, replies_count]
+      required: [id, category_id, author_id, title, slug, body, type, pinned, locked, created_at, last_activity_at, replies_count, views_count, author_name, category_name]
       properties:
         id: {type: string, format: uuid}
         category_id: {type: string, format: uuid}
@@ -546,6 +551,8 @@ components:
         last_activity_at: {type: string, format: date-time}
         replies_count: {type: integer}
         views_count: {type: integer}
+        author_name: {type: string}
+        category_name: {type: string}
     NewTopic:
       type: object
       required: [category_id, title, body]
@@ -555,7 +562,7 @@ components:
         body: {type: string, minLength: 1, maxLength: 20000}
     Post:
       type: object
-      required: [id, topic_id, author_id, body, created_at]
+      required: [id, topic_id, author_id, body, created_at, edited_at, parent_post_id, author_name]
       properties:
         id: {type: string, format: uuid}
         topic_id: {type: string, format: uuid}
@@ -564,9 +571,10 @@ components:
         created_at: {type: string, format: date-time}
         edited_at: {type: string, format: date-time, nullable: true}
         parent_post_id: {type: string, format: uuid, nullable: true}
+        author_name: {type: string}
     Report:
       type: object
-      required: [id, topic_id, author_id, title, body, fished_at, location_visibility, created_at]
+      required: [id, topic_id, author_id, title, body, water_id, fished_at, location_visibility, species, media_urls, created_at, author_name]
       properties:
         id: {type: string, format: uuid}
         topic_id: {type: string, format: uuid}
@@ -579,6 +587,7 @@ components:
         species: {type: array, items: {type: string}}
         media_urls: {type: array, items: {type: string, format: uri}}
         created_at: {type: string, format: date-time}
+        author_name: {type: string}
     NewReport:
       type: object
       required: [title, body, fished_at, location_visibility]
@@ -588,11 +597,15 @@ components:
         water_id: {type: string, format: uuid, nullable: true}
         fished_at: {type: string, format: date}
         location_visibility: {type: string, enum: [water_only, private], default: water_only}
-        media_ids: {type: array, maxItems: 20, items: {type: string, format: uuid}}
+        media_ids:
+          type: array
+          maxItems: 20
+          description: Зарезервировано; непустой список пока возвращает 501 NOT_IMPLEMENTED.
+          items: {type: string, format: uuid}
         species: {type: array, items: {type: string}}
     Water:
       type: object
-      required: [id, name, slug, kind]
+      required: [id, name, slug, kind, region_id, description, cover_url]
       properties:
         id: {type: string, format: uuid}
         name: {type: string}
@@ -603,7 +616,7 @@ components:
         cover_url: {type: string, format: uri, nullable: true}
     Notification:
       type: object
-      required: [id, type, title, created_at, read]
+      required: [id, type, title, created_at, read, target_url]
       properties:
         id: {type: string, format: uuid}
         type: {type: string, enum: [topic_reply, followed_topic, followed_water, mention, moderation]}
@@ -613,11 +626,15 @@ components:
         target_url: {type: string}
     FeedItem:
       type: object
-      required: [kind, topic]
+      required: [kind, topic, report]
       properties:
         kind: {type: string, enum: [topic, report]}
         topic: {$ref: '#/components/schemas/Topic'}
-        report: {$ref: '#/components/schemas/Report'}
+        report:
+          type: object
+          nullable: true
+          allOf:
+            - {$ref: '#/components/schemas/Report'}
     FeedPage:
       type: object
       required: [items, next_cursor]

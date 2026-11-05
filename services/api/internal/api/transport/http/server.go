@@ -17,6 +17,7 @@ type Server struct {
 
 func NewServer(h *Handler, addr string, log *slog.Logger) *Server {
 	r := chi.NewRouter()
+	authGuard := newAuthLimiter()
 
 	r.Use(requestIDMiddleware)
 	r.Use(recovererMiddleware(log))
@@ -25,8 +26,8 @@ func NewServer(h *Handler, addr string, log *slog.Logger) *Server {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		// Auth — публичные.
-		r.Post("/auth/register", h.register)
-		r.Post("/auth/login", h.login)
+		r.With(authGuard.middleware).Post("/auth/register", h.register)
+		r.With(authGuard.middleware).Post("/auth/login", h.login)
 
 		// Auth — требуют сессии.
 		r.Group(func(r chi.Router) {
@@ -81,6 +82,9 @@ func NewServer(h *Handler, addr string, log *slog.Logger) *Server {
 			Addr:              addr,
 			Handler:           r,
 			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       15 * time.Second,
+			WriteTimeout:      30 * time.Second,
+			IdleTimeout:       60 * time.Second,
 		},
 	}
 }

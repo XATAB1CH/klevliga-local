@@ -22,8 +22,15 @@ func NewService(store *repo.Store) *Service {
 }
 
 func (s *Service) Follow(ctx context.Context, userID uuid.UUID, targetType string, targetID uuid.UUID) error {
-	if !validTargetType(targetType) {
+	if !validTargetType(targetType) || targetID == uuid.Nil {
 		return fmt.Errorf("%w: %s", apperr.ErrValidation, social.ErrCodeInvalidTargetType)
+	}
+	if targetType == social.FollowTargetTopic {
+		if _, err := s.store.GetTopic(ctx, targetID); err != nil {
+			return err
+		}
+	} else if _, err := s.store.GetWater(ctx, targetID); err != nil {
+		return err
 	}
 
 	return s.store.Follow(ctx, userID, targetType, targetID)

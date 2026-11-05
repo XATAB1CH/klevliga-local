@@ -15,7 +15,14 @@ func (h *Handler) listWaters(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	q := optionalStringQuery(r, "q")
+	var q *string
+	if value := normalizeText(r.URL.Query().Get("q")); value != "" {
+		if !validTextLength(value, 1, queryMaxLength) {
+			writeError(w, r, apperr.ErrValidation)
+			return
+		}
+		q = &value
+	}
 
 	cursorName, cursorID, err := waterCursorParam(r)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -28,14 +29,38 @@ func writeNoContent(w http.ResponseWriter) {
 // writeError формирует единый формат ошибки {error:{code,message,request_id}}.
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	status, code := mapError(err)
+	if status == http.StatusInternalServerError {
+		slog.ErrorContext(r.Context(), "request failed", "request_id", requestID(r.Context()), "error", err)
+	}
 
 	writeJSON(w, status, dto.ApiError{
 		Error: dto.ErrorBody{
 			Code:      code,
-			Message:   err.Error(),
+			Message:   publicErrorMessage(code),
 			RequestID: requestID(r.Context()),
 		},
 	})
+}
+
+func publicErrorMessage(code string) string {
+	switch code {
+	case "NOT_FOUND":
+		return "not found"
+	case "CONFLICT":
+		return "a record with these values already exists"
+	case "VALIDATION_ERROR":
+		return "check the submitted values"
+	case "UNAUTHORIZED":
+		return "authentication required"
+	case "FORBIDDEN":
+		return "action is not allowed"
+	case "NOT_IMPLEMENTED":
+		return "this feature is not available yet"
+	case "INVALID_CREDENTIALS":
+		return "invalid email or password"
+	default:
+		return "internal server error"
+	}
 }
 
 func mapError(err error) (status int, code string) {

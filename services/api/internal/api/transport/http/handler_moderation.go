@@ -22,7 +22,8 @@ func (h *Handler) flagContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.Reason) < 10 {
+	req.Reason = normalizeText(req.Reason)
+	if !validTextLength(req.Reason, reasonMinLength, reasonMaxLength) {
 		writeError(w, r, apperr.ErrValidation)
 
 		return

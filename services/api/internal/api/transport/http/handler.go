@@ -2,6 +2,8 @@ package http
 
 import (
 	"encoding/json"
+	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"time"
@@ -70,8 +72,15 @@ func NewHandler(
 // --- helpers ---
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		return apperr.ErrValidation
+	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err := dec.Decode(dst); err != nil {
+		return apperr.ErrValidation
+	}
+	if err := dec.Decode(new(any)); err != io.EOF {
 		return apperr.ErrValidation
 	}
 

@@ -22,7 +22,7 @@ func NewService(store *repo.Store) *Service {
 
 // Flag регистрирует жалобу на материал.
 func (s *Service) Flag(ctx context.Context, reporterID uuid.UUID, targetType string, targetID uuid.UUID, reason string) (*moderation.AbuseReport, error) {
-	if !validTargetType(targetType) {
+	if !validTargetType(targetType) || targetID == uuid.Nil {
 		return nil, fmt.Errorf("%w: %s", apperr.ErrValidation, moderation.ErrCodeInvalidTargetType)
 	}
 

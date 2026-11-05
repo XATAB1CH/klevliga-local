@@ -50,7 +50,7 @@ func recovererMiddleware(log *slog.Logger) func(http.Handler) http.Handler {
 			defer func() {
 				if rec := recover(); rec != nil {
 					log.Error("panic recovered", "panic", rec, "stack", string(debug.Stack()))
-					writeError(w, r, apperr.ErrNotImplemented)
+					writeError(w, r, apperr.ErrInternal)
 				}
 			}()
 

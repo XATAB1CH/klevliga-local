@@ -72,6 +72,11 @@ func (s *Service) Create(ctx context.Context, p CreateParams) (*report.Report, e
 		if err != nil {
 			return err
 		}
+		if p.WaterID != nil && p.LocationVisibility == report.LocationVisibilityWaterOnly {
+			if err := s.store.NotifyWaterSubscribers(ctx, *p.WaterID, topic.ID, p.AuthorID); err != nil {
+				return err
+			}
+		}
 
 		return nil
 	})

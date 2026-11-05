@@ -3,6 +3,7 @@ package forum
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 
 	"github.com/XATAB1CH/klev-liga/internal/domains/apperr"
 	"github.com/XATAB1CH/klev-liga/internal/domains/forum"
-	"github.com/XATAB1CH/klev-liga/internal/domains/social"
 	"github.com/XATAB1CH/klev-liga/internal/services/slug"
 	"github.com/XATAB1CH/klev-liga/internal/storages/postgres/repo"
 )
@@ -77,6 +77,9 @@ func (s *Service) CreatePost(
 	err = s.store.WithinTx(ctx, func(ctx context.Context) error {
 		post, err = s.store.CreatePost(ctx, topicID, authorID, body, parentPostID)
 		if err != nil {
+			if errors.Is(err, apperr.ErrNotFound) {
+				return fmt.Errorf("%w: parent post or topic is unavailable", apperr.ErrValidation)
+			}
 			return err
 		}
 
@@ -84,18 +87,8 @@ func (s *Service) CreatePost(
 			return err
 		}
 
-		if topic.AuthorID != authorID {
-			targetType := social.FollowTargetTopic
-			if _, err := s.store.CreateNotification(ctx, repo.CreateNotificationParams{
-				RecipientID: topic.AuthorID,
-				Type:        social.NotificationTopicReply,
-				ActorID:     &authorID,
-				TargetType:  &targetType,
-				TargetID:    &topicID,
-				Title:       "Новый ответ в вашей теме",
-			}); err != nil {
-				return err
-			}
+		if err := s.store.NotifyTopicSubscribers(ctx, topicID, authorID); err != nil {
+			return err
 		}
 
 		return nil

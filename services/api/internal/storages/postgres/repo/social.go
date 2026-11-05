@@ -35,6 +35,20 @@ func (s *Store) Unfollow(ctx context.Context, userID uuid.UUID, targetType strin
 	return nil
 }
 
+func (s *Store) NotifyTopicSubscribers(ctx context.Context, topicID, actorID uuid.UUID) error {
+	err := s.queries(ctx).NotifyTopicSubscribers(ctx, sqlc.NotifyTopicSubscribersParams{
+		TopicID: topicID, ActorID: actorID, TargetUrl: "/forum/topics/" + topicID.String(),
+	})
+	return wrapDBError("notify topic subscribers", err)
+}
+
+func (s *Store) NotifyWaterSubscribers(ctx context.Context, waterID, topicID, actorID uuid.UUID) error {
+	err := s.queries(ctx).NotifyWaterSubscribers(ctx, sqlc.NotifyWaterSubscribersParams{
+		WaterID: waterID, TopicID: topicID, ActorID: actorID, TargetUrl: "/forum/topics/" + topicID.String(),
+	})
+	return wrapDBError("notify water subscribers", err)
+}
+
 type CreateNotificationParams struct {
 	RecipientID uuid.UUID
 	Type        string

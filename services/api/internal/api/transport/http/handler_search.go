@@ -9,8 +9,8 @@ import (
 )
 
 func (h *Handler) searchHandler(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query().Get("q")
-	if len(q) < 2 {
+	q := normalizeText(r.URL.Query().Get("q"))
+	if !validTextLength(q, 2, queryMaxLength) {
 		writeError(w, r, apperr.ErrValidation)
 
 		return

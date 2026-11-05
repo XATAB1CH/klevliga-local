@@ -59,9 +59,15 @@ func (h *Handler) createReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.Title) < 5 || req.Body == "" {
+	req.Title = normalizeText(req.Title)
+	req.Body = normalizeText(req.Body)
+	if !validTextLength(req.Title, titleMinLength, titleMaxLength) || !validTextLength(req.Body, 1, bodyMaxLength) {
 		writeError(w, r, apperr.ErrValidation)
 
+		return
+	}
+	if len(req.MediaIDs) > 0 {
+		writeError(w, r, apperr.ErrNotImplemented)
 		return
 	}
 

@@ -68,7 +68,12 @@ WHERE id = $1 AND deleted_at IS NULL;
 
 -- name: CreatePost :one
 INSERT INTO topic_posts (topic_id, author_id, body, parent_post_id)
-VALUES ($1, $2, $3, $4)
+SELECT $1, $2, $3, $4
+WHERE ($4::uuid IS NULL OR EXISTS (
+    SELECT 1 FROM topic_posts parent
+    WHERE parent.id = $4 AND parent.topic_id = $1 AND parent.deleted_at IS NULL
+))
+  AND EXISTS (SELECT 1 FROM topics t WHERE t.id = $1 AND t.deleted_at IS NULL AND NOT t.locked)
 RETURNING *;
 
 -- name: ListPosts :many

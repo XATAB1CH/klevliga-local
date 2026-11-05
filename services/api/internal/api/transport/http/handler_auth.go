@@ -15,7 +15,9 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Email == "" || len(req.Username) < 3 || len(req.Username) > 32 || len(req.Password) < 12 {
+	req.Email = normalizeText(req.Email)
+	req.Username = normalizeText(req.Username)
+	if !validEmail(req.Email) || !validTextLength(req.Username, usernameMinLength, usernameMaxLength) || !validTextLength(req.Password, passwordMinLength, passwordMaxLength) {
 		writeError(w, r, apperr.ErrValidation)
 
 		return
@@ -38,7 +40,8 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Email == "" || req.Password == "" {
+	req.Email = normalizeText(req.Email)
+	if !validEmail(req.Email) || !validTextLength(req.Password, 1, passwordMaxLength) {
 		writeError(w, r, apperr.ErrValidation)
 
 		return
@@ -57,7 +60,11 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(h.cookieName); err == nil {
-		_ = h.auth.Logout(r.Context(), c.Value)
+		if err := h.auth.Logout(r.Context(), c.Value); err != nil {
+			// Preserve the cookie on failure so the client can retry revocation.
+			writeError(w, r, err)
+			return
+		}
 	}
 
 	h.clearSessionCookie(w)
