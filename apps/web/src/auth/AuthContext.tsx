@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import { useLogin, useLogout, useMe, useRegister } from '../api/hooks';
+import { useLogin, useLogout, useMe, useRegister, useVerifyRegistration } from '../api/hooks';
 import type { User } from '../api/types';
 
 interface AuthContextValue {
@@ -10,6 +10,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<unknown>;
   register: (email: string, username: string, password: string) => Promise<unknown>;
+  verifyRegistration: (email: string, code: string) => Promise<unknown>;
   logout: () => Promise<unknown>;
 }
 
@@ -19,6 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const me = useMe();
   const loginMut = useLogin();
   const registerMut = useRegister();
+  const verifyMut = useVerifyRegistration();
   const logoutMut = useLogout();
 
   const value = useMemo<AuthContextValue>(() => ({
@@ -29,8 +31,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!me.data,
     login: (email, password) => loginMut.mutateAsync({ email, password }),
     register: (email, username, password) => registerMut.mutateAsync({ email, username, password }),
+    verifyRegistration: (email, code) => verifyMut.mutateAsync({ email, code }),
     logout: () => logoutMut.mutateAsync(),
-  }), [me.data, me.isLoading, me.error, loginMut, registerMut, logoutMut]);
+  }), [me.data, me.isLoading, me.error, loginMut, registerMut, verifyMut, logoutMut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

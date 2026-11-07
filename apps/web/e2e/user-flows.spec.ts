@@ -28,7 +28,8 @@ async function mockApi(page: Page) {
     const path = url.pathname.replace('/api/v1', '');
     if (path === '/auth/me') return route.fulfill(state.authenticated ? { json: user } :
       { status: 401, json: { error: { code: 'UNAUTHORIZED', message: 'unauthorized', request_id: 'test' } } });
-    if (path === '/auth/register') { state.registered = true; return route.fulfill({ status: 201, body: '' }); }
+    if (path === '/auth/register') { state.registered = true; return route.fulfill({ status: 202, body: '' }); }
+    if (path === '/auth/register/verify') { state.authenticated = true; return route.fulfill({ status: 204 }); }
     if (path === '/auth/login') { state.authenticated = true; return route.fulfill({ status: 204 }); }
     if (path === '/auth/logout') { state.authenticated = false; return route.fulfill({ status: 204 }); }
     if (path === '/forum/categories') return route.fulfill({ json: [{ id: categoryId, name: 'Общие вопросы', slug: 'general', parent_id: null }] });
@@ -98,7 +99,7 @@ test('modal traps focus, closes with Escape, and restores the trigger', async ({
   await expect(dialog).toHaveCount(0); await expect(trigger).toBeFocused();
 });
 
-test('registration explains the next step and login submits with Enter', async ({ page }) => {
+test('registration verifies email and opens an authenticated session', async ({ page }) => {
   const state = await mockApi(page); await page.goto('/profile');
   await page.getByRole('button', { name: 'Войти / Регистрация' }).click();
   const dialog = page.getByRole('dialog');
@@ -106,10 +107,11 @@ test('registration explains the next step and login submits with Enter', async (
   await dialog.getByLabel('Email').fill('fisher@example.test');
   await dialog.getByLabel('Ник (3–32 символа)').fill(user.username);
   await dialog.getByLabel('Пароль (12–128 символов)').fill('valid-password-123');
+  await dialog.getByLabel('Повторите пароль').fill('valid-password-123');
   await page.keyboard.press('Enter');
-  await expect(dialog.getByRole('status')).toHaveText('Аккаунт создан. Войдите с вашим email и паролем.');
+  await expect(dialog.getByRole('status')).toContainText('Мы отправили шестизначный код');
   expect(state.registered).toBe(true); expect(state.authenticated).toBe(false);
-  await dialog.getByLabel('Пароль', { exact: true }).fill('valid-password-123');
+  await dialog.getByLabel('Код подтверждения').fill('123456');
   await page.keyboard.press('Enter');
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('heading', { name: user.display_name, exact: true })).toBeVisible();

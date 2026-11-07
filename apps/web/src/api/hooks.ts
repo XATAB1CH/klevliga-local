@@ -174,7 +174,17 @@ export function useLogin() {
 export function useRegister() {
   return useMutation({
     mutationFn: (p: { email: string; username: string; password: string }) => api.register(p.email, p.username, p.password),
-    // Registration creates an account, but the API does not create a session.
+  });
+}
+
+export function useVerifyRegistration() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (p: { email: string; code: string }) => api.verifyRegistration(p.email, p.code),
+    onSuccess: async () => {
+      await clearSession(qc);
+      await qc.fetchQuery({ queryKey: ['me'], queryFn: ({ signal }) => api.getMe(signal), staleTime: 0 });
+    },
   });
 }
 

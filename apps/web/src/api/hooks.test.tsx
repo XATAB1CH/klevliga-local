@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, ApiError } from './client';
-import { useFeed, useLogin, useLogout, useMe, useNotifications, useRegister, useReports, useSearch, useTopics, useWaters } from './hooks';
+import { useFeed, useLogin, useLogout, useMe, useNotifications, useRegister, useReports, useSearch, useTopics, useVerifyRegistration, useWaters } from './hooks';
 import type { NotificationPage, User, Water } from './types';
 
 const clients: QueryClient[] = [];
@@ -154,13 +154,17 @@ describe('session and personal data', () => {
     expect(client.getQueryData<User>(['me'])?.id).toBe('bob');
   });
 
-  it('keeps registration separate from login because registration does not create a session', async () => {
+  it('creates the session only after the registration code is verified', async () => {
     vi.spyOn(api, 'register').mockResolvedValue(undefined);
+    vi.spyOn(api, 'verifyRegistration').mockResolvedValue(undefined);
+    vi.mocked(api.getMe).mockResolvedValue(makeUser('bob'));
     const { client, wrapper } = setup();
-    const { result } = renderHook(() => useRegister(), { wrapper });
-    await act(async () => { await result.current.mutateAsync({ email: 'bob@example.com', username: 'bob', password: 'a-valid-password' }); });
+    const { result } = renderHook(() => ({ register: useRegister(), verify: useVerifyRegistration() }), { wrapper });
+    await act(async () => { await result.current.register.mutateAsync({ email: 'bob@example.com', username: 'bob', password: 'a-valid-password' }); });
     expect(client.getQueryData(['me'])).toBeNull();
     expect(api.getMe).not.toHaveBeenCalled();
+    await act(async () => { await result.current.verify.mutateAsync({ email: 'bob@example.com', code: '123456' }); });
+    expect(client.getQueryData<User>(['me'])?.id).toBe('bob');
   });
 
   it('keeps the current session when the logout request fails', async () => {

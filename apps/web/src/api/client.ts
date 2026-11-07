@@ -68,6 +68,7 @@ export const api = {
   getMe: (signal?: AbortSignal) => apiFetch<User>('/auth/me', { signal }),
   login: (email: string, password: string) => apiFetch<void>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   register: (email: string, username: string, password: string) => apiFetch<void>('/auth/register', { method: 'POST', body: JSON.stringify({ email, username, password }) }, false),
+  verifyRegistration: (email: string, code: string) => apiFetch<void>('/auth/register/verify', { method: 'POST', body: JSON.stringify({ email, code }) }),
   logout: () => apiFetch<void>('/auth/logout', { method: 'POST' }),
   getUser: (id: string, signal?: AbortSignal) => apiFetch<User>(`/users/${id}`, { signal }),
 
