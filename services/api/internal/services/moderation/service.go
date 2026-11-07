@@ -26,6 +26,14 @@ func (s *Service) Flag(ctx context.Context, reporterID uuid.UUID, targetType str
 		return nil, fmt.Errorf("%w: %s", apperr.ErrValidation, moderation.ErrCodeInvalidTargetType)
 	}
 
+	exists, err := s.store.ModerationTargetExists(ctx, targetType, targetID)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, apperr.ErrNotFound
+	}
+
 	return s.store.CreateAbuseReport(ctx, reporterID, targetType, targetID, reason)
 }
 

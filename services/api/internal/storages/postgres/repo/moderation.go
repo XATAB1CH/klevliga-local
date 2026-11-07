@@ -30,3 +30,15 @@ func (s *Store) CreateAbuseReport(
 		row.ID, reporterID, targetType, targetID, reason, row.Status, row.CreatedAt,
 	), nil
 }
+
+func (s *Store) ModerationTargetExists(ctx context.Context, targetType string, targetID uuid.UUID) (bool, error) {
+	exists, err := s.queries(ctx).ModerationTargetExists(ctx, sqlc.ModerationTargetExistsParams{
+		TargetType: targetType,
+		TargetID:   targetID,
+	})
+	if err != nil {
+		return false, wrapDBError("check moderation target", err)
+	}
+
+	return exists, nil
+}

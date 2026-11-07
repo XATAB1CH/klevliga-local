@@ -55,3 +55,23 @@ LIMIT sqlc.arg('limit');
 INSERT INTO abuse_reports (reporter_id, target_type, target_id, reason)
 VALUES ($1, $2, $3, $4)
 RETURNING id, status, created_at;
+
+-- name: ModerationTargetExists :one
+SELECT CASE sqlc.arg('target_type')::text
+    WHEN 'topic' THEN EXISTS (
+        SELECT 1 FROM topics WHERE id = sqlc.arg('target_id')::uuid AND deleted_at IS NULL
+    )
+    WHEN 'post' THEN EXISTS (
+        SELECT 1 FROM topic_posts WHERE id = sqlc.arg('target_id')::uuid AND deleted_at IS NULL
+    )
+    WHEN 'report' THEN EXISTS (
+        SELECT 1
+        FROM reports r
+        JOIN topics t ON t.id = r.topic_id AND t.deleted_at IS NULL
+        WHERE r.id = sqlc.arg('target_id')::uuid
+    )
+    WHEN 'user' THEN EXISTS (
+        SELECT 1 FROM users WHERE id = sqlc.arg('target_id')::uuid
+    )
+    ELSE false
+END;

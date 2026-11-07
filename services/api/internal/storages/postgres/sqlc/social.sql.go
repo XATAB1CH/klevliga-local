@@ -158,6 +158,97 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 	return items, nil
 }
 
+const moderationTargetExists = `-- name: ModerationTargetExists :one
+SELECT CASE $1::text
+    WHEN 'topic' THEN EXISTS (
+        SELECT 1 FROM topics WHERE id = $2::uuid AND deleted_at IS NULL
+    )
+    WHEN 'post' THEN EXISTS (
+        SELECT 1 FROM topic_posts WHERE id = $2::uuid AND deleted_at IS NULL
+    )
+    WHEN 'report' THEN EXISTS (
+        SELECT 1
+        FROM reports r
+        JOIN topics t ON t.id = r.topic_id AND t.deleted_at IS NULL
+        WHERE r.id = $2::uuid
+    )
+    WHEN 'user' THEN EXISTS (
+        SELECT 1 FROM users WHERE id = $2::uuid
+    )
+    ELSE false
+END
+`
+
+type ModerationTargetExistsParams struct {
+	TargetType string
+	TargetID   uuid.UUID
+}
+
+func (q *Queries) ModerationTargetExists(ctx context.Context, arg ModerationTargetExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, moderationTargetExists, arg.TargetType, arg.TargetID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const notifyTopicSubscribers = `-- name: NotifyTopicSubscribers :exec
+WITH recipients AS (
+    SELECT author_id AS user_id FROM topics WHERE id = $3::uuid
+    UNION
+    SELECT user_id FROM follows
+    WHERE target_type = 'topic' AND target_id = $3::uuid
+)
+INSERT INTO notifications (recipient_id, type, actor_id, target_type, target_id, title, target_url)
+SELECT r.user_id,
+       CASE WHEN r.user_id = t.author_id THEN 'topic_reply' ELSE 'followed_topic' END,
+       $1::uuid, 'topic', t.id,
+       CASE WHEN r.user_id = t.author_id THEN 'Новый ответ в вашей теме'
+            ELSE 'Новый ответ в теме, на которую вы подписаны' END,
+       $2::text
+FROM recipients r
+JOIN users recipient ON recipient.id = r.user_id AND recipient.status = 'active'
+JOIN topics t ON t.id = $3::uuid AND t.deleted_at IS NULL
+WHERE r.user_id <> $1::uuid
+`
+
+type NotifyTopicSubscribersParams struct {
+	ActorID   uuid.UUID
+	TargetUrl string
+	TopicID   uuid.UUID
+}
+
+func (q *Queries) NotifyTopicSubscribers(ctx context.Context, arg NotifyTopicSubscribersParams) error {
+	_, err := q.db.Exec(ctx, notifyTopicSubscribers, arg.ActorID, arg.TargetUrl, arg.TopicID)
+	return err
+}
+
+const notifyWaterSubscribers = `-- name: NotifyWaterSubscribers :exec
+INSERT INTO notifications (recipient_id, type, actor_id, target_type, target_id, title, target_url)
+SELECT f.user_id, 'followed_water', $1::uuid, 'topic', $2::uuid,
+       'Новый отчёт на водоёме, на который вы подписаны', $3::text
+FROM follows f
+JOIN users recipient ON recipient.id = f.user_id AND recipient.status = 'active'
+WHERE f.target_type = 'water' AND f.target_id = $4::uuid
+  AND f.user_id <> $1::uuid
+`
+
+type NotifyWaterSubscribersParams struct {
+	ActorID   uuid.UUID
+	TopicID   uuid.UUID
+	TargetUrl string
+	WaterID   uuid.UUID
+}
+
+func (q *Queries) NotifyWaterSubscribers(ctx context.Context, arg NotifyWaterSubscribersParams) error {
+	_, err := q.db.Exec(ctx, notifyWaterSubscribers,
+		arg.ActorID,
+		arg.TopicID,
+		arg.TargetUrl,
+		arg.WaterID,
+	)
+	return err
+}
+
 const unfollow = `-- name: Unfollow :exec
 DELETE FROM follows
 WHERE user_id = $1 AND target_type = $2 AND target_id = $3
