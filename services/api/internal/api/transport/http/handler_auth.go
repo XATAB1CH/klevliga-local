@@ -29,7 +29,34 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (h *Handler) verifyRegistration(w http.ResponseWriter, r *http.Request) {
+	var req dto.VerifyRegistrationRequest
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	req.Email = normalizeText(req.Email)
+	req.Code = normalizeText(req.Code)
+	if !validEmail(req.Email) || len(req.Code) != 6 {
+		writeError(w, r, apperr.ErrValidation)
+		return
+	}
+	for _, char := range req.Code {
+		if char < '0' || char > '9' {
+			writeError(w, r, apperr.ErrValidation)
+			return
+		}
+	}
+	token, _, err := h.auth.VerifyRegistration(r.Context(), req.Email, req.Code)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	h.setSessionCookie(w, token)
+	writeNoContent(w)
 }
 
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {

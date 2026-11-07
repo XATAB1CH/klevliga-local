@@ -14,6 +14,7 @@ type Config struct {
 	Server      Server      `yaml:"server"`
 	Connections Connections `yaml:"connections"`
 	Auth        Auth        `yaml:"auth"`
+	Mail        Mail        `yaml:"mail"`
 	Logger      Logger      `yaml:"logger"`
 }
 
@@ -34,10 +35,20 @@ type PostgresConnections struct {
 }
 
 type Auth struct {
-	SessionTTL   time.Duration `yaml:"session_ttl"`
-	CookieName   string        `yaml:"cookie_name"`
-	CookieSecure bool          `yaml:"cookie_secure"`
-	CookieDomain string        `yaml:"cookie_domain"`
+	SessionTTL         time.Duration `yaml:"session_ttl"`
+	CookieName         string        `yaml:"cookie_name"`
+	CookieSecure       bool          `yaml:"cookie_secure"`
+	CookieDomain       string        `yaml:"cookie_domain"`
+	VerificationTTL    time.Duration `yaml:"verification_ttl"`
+	VerificationSecret string        `yaml:"verification_secret"`
+}
+
+type Mail struct {
+	Mode     string `yaml:"mode"`
+	Address  string `yaml:"address"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	From     string `yaml:"from"`
 }
 
 type Logger struct {
@@ -82,6 +93,21 @@ func New(_ context.Context, path string) (*Config, error) {
 
 	if cfg.Auth.CookieName == "" {
 		cfg.Auth.CookieName = "klevliga_session"
+	}
+	if cfg.Auth.VerificationTTL == 0 {
+		cfg.Auth.VerificationTTL = 10 * time.Minute
+	}
+	if cfg.Auth.VerificationSecret == "" {
+		return nil, fmt.Errorf("auth.verification_secret is required")
+	}
+	if cfg.Mail.Mode == "" {
+		cfg.Mail.Mode = "log"
+	}
+	if cfg.Mail.Mode != "log" && cfg.Mail.Mode != "smtp" {
+		return nil, fmt.Errorf("mail.mode must be log or smtp")
+	}
+	if cfg.Mail.Mode == "smtp" && (cfg.Mail.Address == "" || cfg.Mail.From == "") {
+		return nil, fmt.Errorf("mail.address and mail.from are required in smtp mode")
 	}
 
 	if cfg.Logger.Level == "" {

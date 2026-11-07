@@ -58,6 +58,8 @@ func publicErrorMessage(code string) string {
 		return "this feature is not available yet"
 	case "INVALID_CREDENTIALS":
 		return "invalid email or password"
+	case "INVALID_VERIFICATION_CODE":
+		return "verification code is invalid or expired"
 	default:
 		return "internal server error"
 	}
@@ -79,6 +81,8 @@ func mapError(err error) (status int, code string) {
 		return http.StatusNotImplemented, "NOT_IMPLEMENTED"
 	case errors.Is(err, apperr.ErrInvalidCredentials):
 		return http.StatusUnauthorized, "INVALID_CREDENTIALS"
+	case errors.Is(err, apperr.ErrInvalidVerificationCode):
+		return http.StatusBadRequest, "INVALID_VERIFICATION_CODE"
 	default:
 		return http.StatusInternalServerError, "INTERNAL"
 	}

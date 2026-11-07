@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -38,6 +39,25 @@ type integrationAPI struct {
 	server   *httptest.Server
 	userID   uuid.UUID
 	cookie   *http.Cookie
+	mail     *captureMailSender
+}
+
+type captureMailSender struct {
+	mu    sync.Mutex
+	codes map[string]string
+}
+
+func (s *captureMailSender) SendVerificationCode(_ context.Context, recipient, code string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.codes[recipient] = code
+	return nil
+}
+
+func (s *captureMailSender) code(recipient string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.codes[recipient]
 }
 
 // Each test owns a fresh schema; the configured database's existing tables and
@@ -88,15 +108,66 @@ func newIntegrationAPI(t *testing.T) *integrationAPI {
 	if err := pg.MigrateFromPool(ctx, pool, migrations.Migrations, goose.WithTableName(schema+".goose_db_version")); err != nil {
 		t.Fatalf("migrate isolated schema: %v", err)
 	}
-	cfg := &config.Config{Auth: config.Auth{SessionTTL: time.Hour, CookieName: "test_session"}}
-	p := provider.NewProvider(cfg, pool)
+	cfg := &config.Config{Auth: config.Auth{SessionTTL: time.Hour, CookieName: "test_session", VerificationTTL: 10 * time.Minute, VerificationSecret: "integration-test-secret"}}
+	mail := &captureMailSender{codes: make(map[string]string)}
+	p := provider.NewProvider(cfg, pool, mail)
 	h := NewHandler(p.AuthService(), p.ForumService(), p.ReportService(), p.WaterService(), p.FeedService(), p.SearchService(), p.SocialService(), p.ModerationService(), cfg.Auth.CookieName, false, "", time.Hour)
 	s := NewServer(h, ":0", slog.New(slog.NewTextHandler(io.Discard, nil)))
 	server := httptest.NewServer(s.server.Handler)
 	t.Cleanup(server.Close)
-	a := &integrationAPI{pool: pool, provider: p, server: server}
+	a := &integrationAPI{pool: pool, provider: p, server: server, mail: mail}
 	a.userID, a.cookie = a.newUser(t)
 	return a
+}
+
+func TestRegistrationRequiresCodeAndCreatesSession(t *testing.T) {
+	a := newIntegrationAPI(t)
+	email := "verify_" + strings.ReplaceAll(uuid.NewString(), "-", "") + "@example.test"
+	username := "angler_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:20]
+	status, data := a.request(t, http.MethodPost, "/auth/register", map[string]string{
+		"email": email, "username": username, "password": "correct horse battery staple",
+	}, nil)
+	if status != http.StatusAccepted {
+		t.Fatalf("register: %d %s", status, data)
+	}
+	if code := a.mail.code(email); len(code) != 6 {
+		t.Fatalf("sent code = %q", code)
+	}
+	if _, err := a.provider.Store().GetUserByEmail(context.Background(), email); !errors.Is(err, apperr.ErrNotFound) {
+		t.Fatalf("user exists before verification: %v", err)
+	}
+	status, _ = a.request(t, http.MethodPost, "/auth/register/verify", map[string]string{"email": email, "code": "999999"}, nil)
+	if status != http.StatusBadRequest {
+		t.Fatalf("wrong code status = %d", status)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, a.server.URL+"/api/v1/auth/register/verify", strings.NewReader(`{"email":"`+email+`","code":"`+a.mail.code(email)+`"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := a.server.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("verify: %d %s", resp.StatusCode, body)
+	}
+	var sessionCookie *http.Cookie
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == "test_session" {
+			sessionCookie = cookie
+		}
+	}
+	if sessionCookie == nil || sessionCookie.Value == "" {
+		t.Fatal("verification did not set session cookie")
+	}
+	status, data = a.request(t, http.MethodGet, "/auth/me", nil, sessionCookie)
+	if status != http.StatusOK || !strings.Contains(string(data), username) {
+		t.Fatalf("me: %d %s", status, data)
+	}
 }
 
 func (a *integrationAPI) newUser(t *testing.T) (uuid.UUID, *http.Cookie) {

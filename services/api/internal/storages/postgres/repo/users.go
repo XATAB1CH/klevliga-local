@@ -2,12 +2,61 @@ package repo
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/XATAB1CH/klev-liga/internal/domains/auth"
 	"github.com/XATAB1CH/klev-liga/internal/storages/postgres/sqlc"
 )
+
+type PendingRegistration struct {
+	Email, Username, PasswordHash string
+	CodeHash                      []byte
+	Attempts                      int32
+	ExpiresAt                     time.Time
+}
+
+func (s *Store) RegistrationAvailable(ctx context.Context, email, username string) (bool, error) {
+	ok, err := s.queries(ctx).RegistrationAvailable(ctx, sqlc.RegistrationAvailableParams{Email: email, Username: username})
+	if err != nil {
+		return false, wrapDBError("check registration availability", err)
+	}
+	return ok, nil
+}
+
+func (s *Store) UpsertPendingRegistration(ctx context.Context, p PendingRegistration) error {
+	err := s.queries(ctx).UpsertPendingRegistration(ctx, sqlc.UpsertPendingRegistrationParams{
+		Email: p.Email, Username: p.Username, PasswordHash: p.PasswordHash,
+		CodeHash: p.CodeHash, ExpiresAt: p.ExpiresAt,
+	})
+	if err != nil {
+		return wrapDBError("save pending registration", err)
+	}
+	return nil
+}
+
+func (s *Store) GetPendingRegistrationForUpdate(ctx context.Context, email string) (*PendingRegistration, error) {
+	r, err := s.queries(ctx).GetPendingRegistrationForUpdate(ctx, email)
+	if err != nil {
+		return nil, wrapDBError("get pending registration", err)
+	}
+	return &PendingRegistration{Email: r.Email, Username: r.Username, PasswordHash: r.PasswordHash, CodeHash: r.CodeHash, Attempts: r.Attempts, ExpiresAt: r.ExpiresAt}, nil
+}
+
+func (s *Store) IncrementPendingRegistrationAttempts(ctx context.Context, email string) error {
+	if err := s.queries(ctx).IncrementPendingRegistrationAttempts(ctx, email); err != nil {
+		return wrapDBError("increment verification attempts", err)
+	}
+	return nil
+}
+
+func (s *Store) DeletePendingRegistration(ctx context.Context, email string) error {
+	if err := s.queries(ctx).DeletePendingRegistration(ctx, email); err != nil {
+		return wrapDBError("delete pending registration", err)
+	}
+	return nil
+}
 
 // CreateUser создаёт пользователя и возвращает его ID.
 func (s *Store) CreateUser(ctx context.Context, email, username, passwordHash string) (uuid.UUID, error) {

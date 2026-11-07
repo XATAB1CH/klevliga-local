@@ -65,6 +65,45 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const deletePendingRegistration = `-- name: DeletePendingRegistration :exec
+DELETE FROM pending_registrations WHERE email = $1
+`
+
+func (q *Queries) DeletePendingRegistration(ctx context.Context, email string) error {
+	_, err := q.db.Exec(ctx, deletePendingRegistration, email)
+	return err
+}
+
+const getPendingRegistrationForUpdate = `-- name: GetPendingRegistrationForUpdate :one
+SELECT email, username, password_hash, code_hash, attempts, expires_at
+FROM pending_registrations
+WHERE email = $1
+FOR UPDATE
+`
+
+type GetPendingRegistrationForUpdateRow struct {
+	Email        string
+	Username     string
+	PasswordHash string
+	CodeHash     []byte
+	Attempts     int32
+	ExpiresAt    time.Time
+}
+
+func (q *Queries) GetPendingRegistrationForUpdate(ctx context.Context, email string) (GetPendingRegistrationForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getPendingRegistrationForUpdate, email)
+	var i GetPendingRegistrationForUpdateRow
+	err := row.Scan(
+		&i.Email,
+		&i.Username,
+		&i.PasswordHash,
+		&i.CodeHash,
+		&i.Attempts,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT u.id, u.email, u.username, u.password_hash, u.status, u.created_at,
        p.display_name, p.bio, p.region, p.avatar_url, p.role
@@ -147,6 +186,33 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow
 	return i, err
 }
 
+const incrementPendingRegistrationAttempts = `-- name: IncrementPendingRegistrationAttempts :exec
+UPDATE pending_registrations SET attempts = attempts + 1 WHERE email = $1
+`
+
+func (q *Queries) IncrementPendingRegistrationAttempts(ctx context.Context, email string) error {
+	_, err := q.db.Exec(ctx, incrementPendingRegistrationAttempts, email)
+	return err
+}
+
+const registrationAvailable = `-- name: RegistrationAvailable :one
+SELECT NOT EXISTS (
+    SELECT 1 FROM users WHERE email = $1 OR username = $2
+)
+`
+
+type RegistrationAvailableParams struct {
+	Email    string
+	Username string
+}
+
+func (q *Queries) RegistrationAvailable(ctx context.Context, arg RegistrationAvailableParams) (bool, error) {
+	row := q.db.QueryRow(ctx, registrationAvailable, arg.Email, arg.Username)
+	var not_exists bool
+	err := row.Scan(&not_exists)
+	return not_exists, err
+}
+
 const searchUsers = `-- name: SearchUsers :many
 SELECT u.id, u.username, p.display_name, p.avatar_url, p.region, p.bio, u.created_at
 FROM users u
@@ -198,4 +264,35 @@ func (q *Queries) SearchUsers(ctx context.Context, arg SearchUsersParams) ([]Sea
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertPendingRegistration = `-- name: UpsertPendingRegistration :exec
+INSERT INTO pending_registrations (email, username, password_hash, code_hash, expires_at)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (email) DO UPDATE SET
+    username = EXCLUDED.username,
+    password_hash = EXCLUDED.password_hash,
+    code_hash = EXCLUDED.code_hash,
+    attempts = 0,
+    expires_at = EXCLUDED.expires_at,
+    created_at = now()
+`
+
+type UpsertPendingRegistrationParams struct {
+	Email        string
+	Username     string
+	PasswordHash string
+	CodeHash     []byte
+	ExpiresAt    time.Time
+}
+
+func (q *Queries) UpsertPendingRegistration(ctx context.Context, arg UpsertPendingRegistrationParams) error {
+	_, err := q.db.Exec(ctx, upsertPendingRegistration,
+		arg.Email,
+		arg.Username,
+		arg.PasswordHash,
+		arg.CodeHash,
+		arg.ExpiresAt,
+	)
+	return err
 }

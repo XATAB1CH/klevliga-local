@@ -34,6 +34,11 @@ type RegisterRequest struct {
 	Password string `json:"password"`
 }
 
+type VerifyRegistrationRequest struct {
+	Email string `json:"email"`
+	Code  string `json:"code"`
+}
+
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`

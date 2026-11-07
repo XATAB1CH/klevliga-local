@@ -27,6 +27,7 @@ func NewServer(h *Handler, addr string, log *slog.Logger) *Server {
 	r.Route("/api/v1", func(r chi.Router) {
 		// Auth — публичные.
 		r.With(authGuard.middleware).Post("/auth/register", h.register)
+		r.With(authGuard.middleware).Post("/auth/register/verify", h.verifyRegistration)
 		r.With(authGuard.middleware).Post("/auth/login", h.login)
 
 		// Auth — требуют сессии.

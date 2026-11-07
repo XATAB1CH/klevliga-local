@@ -3,11 +3,13 @@ package provider
 
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
+	"log/slog"
 
 	"github.com/XATAB1CH/klev-liga/internal/config"
 	"github.com/XATAB1CH/klev-liga/internal/services/auth"
 	"github.com/XATAB1CH/klev-liga/internal/services/feed"
 	"github.com/XATAB1CH/klev-liga/internal/services/forum"
+	mailSvc "github.com/XATAB1CH/klev-liga/internal/services/mail"
 	"github.com/XATAB1CH/klev-liga/internal/services/moderation"
 	"github.com/XATAB1CH/klev-liga/internal/services/report"
 	"github.com/XATAB1CH/klev-liga/internal/services/search"
@@ -20,19 +22,27 @@ type Provider struct {
 	cfg *config.Config
 	db  *pgxpool.Pool
 
-	store     *repo.Store
-	authSvc   *auth.Service
-	forumSvc  *forum.Service
-	reportSvc *report.Service
-	waterSvc  *water.Service
-	feedSvc   *feed.Service
-	searchSvc *search.Service
-	socialSvc *social.Service
-	modSvc    *moderation.Service
+	store      *repo.Store
+	authSvc    *auth.Service
+	forumSvc   *forum.Service
+	reportSvc  *report.Service
+	waterSvc   *water.Service
+	feedSvc    *feed.Service
+	searchSvc  *search.Service
+	socialSvc  *social.Service
+	modSvc     *moderation.Service
+	mailSender mailSvc.Sender
 }
 
-func NewProvider(cfg *config.Config, db *pgxpool.Pool) *Provider {
-	return &Provider{cfg: cfg, db: db}
+func NewProvider(cfg *config.Config, db *pgxpool.Pool, senders ...mailSvc.Sender) *Provider {
+	var sender mailSvc.Sender
+	if len(senders) > 0 {
+		sender = senders[0]
+	}
+	if sender == nil {
+		sender = mailSvc.LogSender{Log: slog.Default()}
+	}
+	return &Provider{cfg: cfg, db: db, mailSender: sender}
 }
 
 func (p *Provider) Config() *config.Config {
@@ -49,7 +59,7 @@ func (p *Provider) Store() *repo.Store {
 
 func (p *Provider) AuthService() *auth.Service {
 	if p.authSvc == nil {
-		p.authSvc = auth.NewService(p.Store(), p.cfg.Auth.SessionTTL)
+		p.authSvc = auth.NewService(p.Store(), p.cfg.Auth.SessionTTL, p.cfg.Auth.VerificationTTL, p.cfg.Auth.VerificationSecret, p.mailSender)
 	}
 
 	return p.authSvc

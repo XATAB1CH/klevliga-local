@@ -9,6 +9,7 @@ import (
 	"github.com/XATAB1CH/klev-liga/internal/api/transport/http"
 	"github.com/XATAB1CH/klev-liga/internal/app/provider"
 	"github.com/XATAB1CH/klev-liga/internal/config"
+	mailSvc "github.com/XATAB1CH/klev-liga/internal/services/mail"
 	"github.com/XATAB1CH/klev-liga/migrations"
 	"github.com/XATAB1CH/klev-liga/pkg/pg"
 )
@@ -32,7 +33,13 @@ func New(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, error
 		return nil, fmt.Errorf("run migrations: %w", err)
 	}
 
-	p := provider.NewProvider(cfg, db)
+	var sender mailSvc.Sender = mailSvc.LogSender{Log: log}
+	if cfg.Mail.Mode == "smtp" {
+		sender = mailSvc.SMTPSender{Config: mailSvc.SMTPConfig{
+			Address: cfg.Mail.Address, Username: cfg.Mail.Username, Password: cfg.Mail.Password, From: cfg.Mail.From,
+		}}
+	}
+	p := provider.NewProvider(cfg, db, sender)
 
 	h := http.NewHandler(
 		p.AuthService(),

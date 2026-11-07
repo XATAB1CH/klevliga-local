@@ -20,6 +20,16 @@ auth:
   cookie_name: klevliga_session
   cookie_secure: false
   cookie_domain: ""
+  verification_ttl: 10m
+  verification_secret: ${AUTH_VERIFICATION_SECRET}
+
+mail:
+  # log prints the code to the API log for local development; smtp sends email.
+  mode: ${MAIL_MODE:log}
+  address: ${SMTP_ADDRESS:}
+  username: ${SMTP_USERNAME:}
+  password: ${SMTP_PASSWORD:}
+  from: ${SMTP_FROM:}
 
 logger:
   title: ${APP_NAME:klevliga-api}

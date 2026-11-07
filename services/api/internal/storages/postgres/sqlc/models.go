@@ -50,6 +50,16 @@ type Notification struct {
 	CreatedAt   time.Time
 }
 
+type PendingRegistration struct {
+	Email        string
+	Username     string
+	PasswordHash string
+	CodeHash     []byte
+	Attempts     int32
+	ExpiresAt    time.Time
+	CreatedAt    time.Time
+}
+
 type Region struct {
 	ID   uuid.UUID
 	Name string
