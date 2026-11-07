@@ -14,6 +14,7 @@
 - Go backend в `services/api`.
 - REST API под `/api/v1`.
 - Cookie-based авторизация через HttpOnly session cookie.
+- Совмещаемые роли, управление участниками и транзакционный журнал действий администратора.
 - PostgreSQL-схема и seed-данные через embedded Goose migrations.
 - Форум, лента, водоёмы, отчёты, поиск, подписки, уведомления и модерационные жалобы на уровне MVP API.
 - Локальный PostgreSQL через Docker Compose.
@@ -212,6 +213,8 @@ make db-down          # остановить PostgreSQL
 Базовый путь API: `/api/v1`.
 
 Актуальные особенности DTO, авторизации, ограничений и незавершённых функций описаны в [docs/API_NOTES.md](docs/API_NOTES.md). Для frontend используются Vitest/Testing Library и Playwright. Backend содержит unit tests и PostgreSQL integration tests с изолированными схемами (`-tags=integration`, переменная `KLEVLIGA_TEST_DATABASE_URL`).
+
+Первое назначение администратора, матрица полномочий и служебные маршруты описаны в [ролях и аудите](docs/ROLES_AND_AUDIT.md). После назначения экран управления доступен из профиля по ссылке «Управление сообществом».
 
 Основные группы endpoints:
 

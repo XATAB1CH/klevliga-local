@@ -1,8 +1,12 @@
 # Концепция схемы PostgreSQL (без реализации миграций)
 
-Этот файл сохраняет первоначальную концепцию и не является точным описанием текущих таблиц. Фактическая схема находится в `services/api/migrations`; новые роли, чат, поддержка и аудит запланированы в [ROADMAP.md](ROADMAP.md). Перед их реализацией модель и контракты нужно актуализировать вместе с миграциями.
+Этот файл сохраняет первоначальную концепцию и не является точным описанием всех текущих таблиц. Фактическая схема находится в `services/api/migrations`; дальнейшие этапы описаны в [ROADMAP.md](ROADMAP.md).
 
-## Сущности
+## Реализованные роли и аудит
+
+Миграция `20261107200000_add_roles_and_audit.sql` заменяет `user_profiles.role` на `roles text[]` с обязательной `user`, допустимыми `user/moderator/support/admin` и запретом повторов. Статус `active/blocked` остаётся в `users`. `access_control_lock` сериализует служебные изменения. `audit_events` хранит append-only события с исполнителем, объектом, причиной, request ID и разрешёнными `changes`; изменение и аудит атомарны. Схема, матрица доступа и bootstrap описаны в [ROLES_AND_AUDIT.md](ROLES_AND_AUDIT.md).
+
+## Сущности первоначальной концепции
 
 - `users (id UUID PK, email CITEXT UNIQUE, password_hash, username CITEXT UNIQUE, status, created_at, updated_at)`
 - `user_profiles (user_id PK/FK, display_name, bio, region_id, avatar_media_id, role, updated_at)`
