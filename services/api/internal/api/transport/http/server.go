@@ -15,9 +15,10 @@ type Server struct {
 	server *http.Server
 }
 
-func NewServer(h *Handler, addr string, log *slog.Logger) *Server {
+func NewServer(h *Handler, addr string, log *slog.Logger, trustLoopbackProxy bool) *Server {
 	r := chi.NewRouter()
 	authGuard := newAuthLimiter()
+	authGuard.trustLoopbackProxy = trustLoopbackProxy
 
 	r.Use(requestIDMiddleware)
 	r.Use(recovererMiddleware(log))

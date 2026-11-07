@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"time"
 
+	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
 
@@ -23,7 +25,8 @@ type Server struct {
 }
 
 type BasicServer struct {
-	Address string `yaml:"address"`
+	Address            string `yaml:"address"`
+	TrustLoopbackProxy bool   `yaml:"trust_loopback_proxy"`
 }
 
 type Connections struct {
@@ -45,6 +48,7 @@ type Auth struct {
 
 type Mail struct {
 	Mode     string `yaml:"mode"`
+	TLSMode  string `yaml:"tls_mode"`
 	Address  string `yaml:"address"`
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
@@ -64,10 +68,17 @@ func New(_ context.Context, path string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
+	fileEnv, err := godotenv.Read(filepath.Join(filepath.Dir(path), ".env"))
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("read .env beside config: %w", err)
+	}
 
 	expanded := envPattern.ReplaceAllStringFunc(string(raw), func(match string) string {
 		parts := envPattern.FindStringSubmatch(match)
 		if value, ok := os.LookupEnv(parts[1]); ok {
+			return value
+		}
+		if value, ok := fileEnv[parts[1]]; ok {
 			return value
 		}
 
@@ -102,6 +113,12 @@ func New(_ context.Context, path string) (*Config, error) {
 	}
 	if cfg.Mail.Mode == "" {
 		cfg.Mail.Mode = "log"
+	}
+	if cfg.Mail.TLSMode == "" {
+		cfg.Mail.TLSMode = "auto"
+	}
+	if cfg.Mail.TLSMode != "auto" && cfg.Mail.TLSMode != "tls" && cfg.Mail.TLSMode != "starttls" {
+		return nil, fmt.Errorf("mail.tls_mode must be auto, tls or starttls")
 	}
 	if cfg.Mail.Mode != "log" && cfg.Mail.Mode != "smtp" {
 		return nil, fmt.Errorf("mail.mode must be log or smtp")

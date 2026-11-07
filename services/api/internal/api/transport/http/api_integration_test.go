@@ -215,7 +215,7 @@ func newIntegrationAPI(t *testing.T) *integrationAPI {
 	mail := &captureMailSender{codes: make(map[string]string)}
 	p := provider.NewProvider(cfg, pool, mail)
 	h := NewHandler(p.AuthService(), p.ForumService(), p.ReportService(), p.WaterService(), p.FeedService(), p.SearchService(), p.SocialService(), p.ModerationService(), cfg.Auth.CookieName, false, "", time.Hour)
-	s := NewServer(h, ":0", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := NewServer(h, ":0", slog.New(slog.NewTextHandler(io.Discard, nil)), false)
 	server := httptest.NewServer(s.server.Handler)
 	t.Cleanup(server.Close)
 	a := &integrationAPI{pool: pool, provider: p, server: server, mail: mail}

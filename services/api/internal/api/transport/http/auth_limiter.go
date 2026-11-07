@@ -16,16 +16,17 @@ type authAttemptWindow struct {
 }
 
 // authLimiter bounds both request volume and concurrent Argon2 work. Its state
-// is bounded and lives for one server instance; no background goroutine or
-// caller-supplied forwarding header is needed.
+// is bounded and lives for one server instance. Forwarded client addresses
+// are accepted only from an explicitly trusted loopback proxy.
 type authLimiter struct {
-	mu         sync.Mutex
-	clients    map[string]authAttemptWindow
-	window     time.Duration
-	limit      int
-	maxClients int
-	slots      chan struct{}
-	now        func() time.Time
+	mu                 sync.Mutex
+	clients            map[string]authAttemptWindow
+	window             time.Duration
+	limit              int
+	maxClients         int
+	slots              chan struct{}
+	now                func() time.Time
+	trustLoopbackProxy bool
 }
 
 func newAuthLimiter() *authLimiter {
@@ -40,6 +41,14 @@ func (l *authLimiter) middleware(next http.Handler) http.Handler {
 		peer, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
 			peer = r.RemoteAddr
+		}
+		if l.trustLoopbackProxy {
+			if address := net.ParseIP(peer); address != nil && address.IsLoopback() {
+				// Caddy overwrites this header with a single validated client IP.
+				if forwarded := net.ParseIP(r.Header.Get("X-Forwarded-For")); forwarded != nil {
+					peer = forwarded.String()
+				}
+			}
 		}
 		if retryAfter := l.takeAttempt(peer); retryAfter > 0 {
 			writeAuthLimit(w, r, retryAfter)

@@ -33,6 +33,39 @@ func TestAuthLimiterRateWindowAndUntrustedForwardingHeader(t *testing.T) {
 	}
 }
 
+func TestAuthLimiterTrustsOnlyConfiguredLoopbackProxy(t *testing.T) {
+	for _, tc := range []struct {
+		name, peer   string
+		trust        bool
+		secondStatus int
+	}{
+		{"trusted local gateway", "127.0.0.1:12345", true, http.StatusNoContent},
+		{"untrusted local caller", "127.0.0.1:12345", false, http.StatusTooManyRequests},
+		{"forged remote header", "192.0.2.10:12345", true, http.StatusTooManyRequests},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			limiter := newAuthLimiter()
+			limiter.limit = 1
+			limiter.trustLoopbackProxy = tc.trust
+			handler := limiter.middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+			for index, forwarded := range []string{"203.0.113.1", "203.0.113.2"} {
+				req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
+				req.RemoteAddr = tc.peer
+				req.Header.Set("X-Forwarded-For", forwarded)
+				rec := httptest.NewRecorder()
+				handler.ServeHTTP(rec, req)
+				want := http.StatusNoContent
+				if index == 1 {
+					want = tc.secondStatus
+				}
+				if rec.Code != want {
+					t.Fatalf("request %d: got %d, want %d", index, rec.Code, want)
+				}
+			}
+		})
+	}
+}
+
 func TestAuthLimiterBoundsConcurrentRequestsAndReleasesSlots(t *testing.T) {
 	l := newAuthLimiter()
 	entered := make(chan struct{}, cap(l.slots))

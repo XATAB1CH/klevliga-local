@@ -37,6 +37,7 @@ func New(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, error
 	if cfg.Mail.Mode == "smtp" {
 		sender = mailSvc.SMTPSender{Config: mailSvc.SMTPConfig{
 			Address: cfg.Mail.Address, Username: cfg.Mail.Username, Password: cfg.Mail.Password, From: cfg.Mail.From,
+			TLSMode: cfg.Mail.TLSMode,
 		}}
 	}
 	p := provider.NewProvider(cfg, db, sender)
@@ -60,7 +61,7 @@ func New(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, error
 		cfg:        cfg,
 		log:        log,
 		provider:   p,
-		httpServer: http.NewServer(h, cfg.Server.HTTP.Address, log),
+		httpServer: http.NewServer(h, cfg.Server.HTTP.Address, log, cfg.Server.HTTP.TrustLoopbackProxy),
 	}, nil
 }
 

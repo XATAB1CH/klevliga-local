@@ -37,6 +37,10 @@ test-integration:
 run:
 	go run ${ENTRYPOINT} -c ./config.yaml
 
+.PHONY: mail-check
+mail-check:
+	go run ./cmd/mailcheck -c ./config.yaml
+
 .PHONY: ci-build
 ci-build:
 	CGO_ENABLED=0 go build \

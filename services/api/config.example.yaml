@@ -1,6 +1,7 @@
 server:
   http:
-    address: ":8080"
+    address: ${API_ADDRESS:127.0.0.1:8080}
+    trust_loopback_proxy: ${TRUST_LOOPBACK_PROXY:false}
 
 connections:
   postgres:
@@ -18,7 +19,7 @@ connections:
 auth:
   session_ttl: 720h
   cookie_name: klevliga_session
-  cookie_secure: false
+  cookie_secure: ${COOKIE_SECURE:false}
   cookie_domain: ""
   verification_ttl: 10m
   verification_secret: ${AUTH_VERIFICATION_SECRET}
@@ -26,6 +27,7 @@ auth:
 mail:
   # log prints the code to the API log for local development; smtp sends email.
   mode: ${MAIL_MODE:log}
+  tls_mode: ${SMTP_TLS_MODE:auto}
   address: ${SMTP_ADDRESS:}
   username: ${SMTP_USERNAME:}
   password: ${SMTP_PASSWORD:}
