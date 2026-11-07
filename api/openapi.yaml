@@ -101,6 +101,29 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/User'}
         '401': {$ref: '#/components/responses/Unauthorized'}
+  /auth/avatar:
+    put:
+      tags: [Auth]
+      summary: Загрузить или заменить аватар текущего пользователя
+      operationId: uploadAvatar
+      security: [{sessionCookie: []}]
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema: {type: string, format: binary, maxLength: 5242880}
+          image/png:
+            schema: {type: string, format: binary, maxLength: 5242880}
+      responses:
+        '200':
+          description: Обновлённый профиль; изображение обрезано до квадрата и перекодировано без EXIF
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/User'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '413': {description: Файл превышает 5 МБ}
+        '415': {description: Допускаются только JPEG и PNG}
   /users/{id}:
     get:
       tags: [Users]
@@ -114,6 +137,20 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/User'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /users/{id}/avatar:
+    get:
+      tags: [Users]
+      summary: Публичный обработанный аватар пользователя
+      operationId: getUserAvatar
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '200':
+          description: JPEG без исходных метаданных
+          content:
+            image/jpeg:
+              schema: {type: string, format: binary}
         '404': {$ref: '#/components/responses/NotFound'}
   /feed:
     get:
@@ -541,7 +578,7 @@ components:
         id: {type: string, format: uuid}
         username: {type: string}
         display_name: {type: string}
-        avatar_url: {type: string, format: uri, nullable: true}
+        avatar_url: {type: string, nullable: true, description: Same-origin URL с версией для обновления кэша}
         region: {type: string, nullable: true, description: Название региона из публичного профиля}
         bio: {type: string, nullable: true}
         joined_at: {type: string, format: date-time}
