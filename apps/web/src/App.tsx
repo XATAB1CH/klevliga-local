@@ -20,6 +20,7 @@ import { WaterPage } from './pages/WaterPage';
 import { WatersPage } from './pages/WatersPage';
 import { TopicPage } from './pages/TopicPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { AdminPage } from './pages/AdminPage';
 
 export default function App() {
   const [menu, setMenu] = useState(false);
@@ -66,6 +67,7 @@ export default function App() {
             <Route path="/waters/:id" element={<WaterPage />} />
             <Route path="/search" element={<SearchResultsPage onOpen={openTopic} onFollow={handleFollow} />} />
             <Route path="/profile" element={<ProfilePage onLogin={() => setAuthOpen(true)} />} />
+            <Route path="/admin" element={<AdminPage onLogin={() => setAuthOpen(true)} />} />
             <Route path="/notifications" element={<NotificationsPage onLogin={() => setAuthOpen(true)} />} />
             <Route path="/subscriptions" element={<SubscriptionsPage />} />
             <Route path="/knowledge" element={<Placeholder section="База знаний" />} />

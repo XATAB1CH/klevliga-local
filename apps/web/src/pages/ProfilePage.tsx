@@ -1,6 +1,6 @@
 import { useRef, useState, type ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, Bookmark, CalendarDays, Camera, MapPin, UserRound } from 'lucide-react';
+import { Bell, Bookmark, CalendarDays, Camera, MapPin, ShieldCheck, UserRound } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useMe, useUploadAvatar } from '../api/hooks';
 import { ErrorNotice, Loading, errorMessage } from '../components/QueryState';
@@ -72,6 +72,7 @@ export function ProfilePage({ onLogin }: { onLogin: () => void }) {
             {notice && <p className="success-message" role="status">{notice}</p>}
             {actionError && <p className="form-error" role="alert">{actionError}</p>}
             <div className="profile-links">
+              {user.permissions?.includes('users.manage') && <Link to="/admin"><ShieldCheck size={21} aria-hidden="true" /><span><strong>Управление сообществом</strong><small>Права участников и журнал действий</small></span></Link>}
               <Link to="/subscriptions"><Bookmark size={21} aria-hidden="true" /><span><strong>Мои подписки</strong><small>Темы и водоёмы, за которыми вы следите</small></span></Link>
               <Link to="/notifications"><Bell size={21} aria-hidden="true" /><span><strong>Уведомления</strong><small>Ответы и события сообщества</small></span></Link>
             </div>

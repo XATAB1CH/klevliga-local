@@ -1,7 +1,7 @@
 // Типизированный HTTP-клиент к Go API. Все запросы шлют сессионную cookie.
 import type {
   Category, FeedPage, NotificationPage, Post, PostPage, Report, ReportPage,
-  SearchResults, Topic, TopicPage, User, Water, WaterPage,
+  SearchResults, Topic, TopicPage, User, Water, WaterPage, SessionUser, ManagedUser, Role, AuditEvent, AuditFilters, Page,
 } from './types';
 
 const BASE = '/api/v1';
@@ -65,7 +65,7 @@ function json<T>(path: string, method: string, body: unknown): Promise<T> {
 
 export const api = {
   // Auth
-  getMe: (signal?: AbortSignal) => apiFetch<User>('/auth/me', { signal }),
+  getMe: (signal?: AbortSignal) => apiFetch<SessionUser>('/auth/me', { signal }),
   login: (email: string, password: string) => apiFetch<void>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   register: (email: string, username: string, password: string) => apiFetch<void>('/auth/register', { method: 'POST', body: JSON.stringify({ email, username, password }) }, false),
   verifyRegistration: (email: string, code: string) => apiFetch<void>('/auth/register/verify', { method: 'POST', body: JSON.stringify({ email, code }) }),
@@ -89,6 +89,11 @@ export const api = {
   getNotifications: (p: { cursor?: string; limit?: number } = {}, signal?: AbortSignal) => apiFetch<NotificationPage>(`/notifications${qs({ cursor: p.cursor, limit: p.limit })}`, { signal }),
 
   // Writes
+  searchManagedUsers: (q: string, signal?: AbortSignal) => apiFetch<{ items: ManagedUser[] }>(`/admin/users${qs({ q, limit: 20 })}`, { signal }),
+  getManagedUser: (id: string, signal?: AbortSignal) => apiFetch<ManagedUser>(`/admin/users/${id}`, { signal }),
+  changeRoles: (id: string, roles: Role[], reason: string) => json<void>(`/admin/users/${id}/roles`, 'PUT', { roles, reason }),
+  changeUserStatus: (id: string, status: 'active' | 'blocked', reason: string) => json<void>(`/admin/users/${id}/status`, 'PUT', { status, reason }),
+  getAuditEvents: (p: AuditFilters & { cursor?: string; limit?: number }, signal?: AbortSignal) => apiFetch<Page<AuditEvent>>(`/admin/audit-events${qs({ ...p })}`, { signal }),
   createTopic: (categoryId: string, title: string, body: string) => json<Topic>('/forum/topics', 'POST', { category_id: categoryId, title, body }),
   reply: (topicId: string, body: string, parentPostId?: string | null) => json<Post>(`/forum/topics/${topicId}/posts`, 'POST', { body, parent_post_id: parentPostId ?? null }),
   createReport: (p: { title: string; body: string; water_id?: string | null; fished_at: string; location_visibility: string; species: string[] }) => json<Report>('/reports', 'POST', p),

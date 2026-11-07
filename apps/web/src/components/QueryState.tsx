@@ -5,6 +5,7 @@ export function errorMessage(error: unknown, fallback = 'Не удалось з�
     if (error.code === 'INVALID_CREDENTIALS') return 'Неверный email или пароль.';
     if (error.status === 401) return 'Сессия завершилась. Войдите ещё раз.';
     if (error.code === 'CONFLICT') return 'Этот email или ник уже занят.';
+    if (error.code === 'LAST_ADMIN_REQUIRED') return 'Нельзя удалить или заблокировать последнего активного администратора. Сначала назначьте другого.';
     if (error.code === 'INVALID_VERIFICATION_CODE') return 'Код неверный или истёк. Запросите новый код.';
     if (error.code === 'RATE_LIMITED' || error.status === 429) return 'Слишком много попыток. Подождите немного.';
     if (error.status === 413) return 'Фото слишком большое. Выберите файл до 5 МБ.';

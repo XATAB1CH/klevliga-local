@@ -27,7 +27,7 @@ async function mockApi(page: Page) {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '');
-    if (path === '/auth/me') return route.fulfill(state.authenticated ? { json: state.profile } :
+    if (path === '/auth/me') return route.fulfill(state.authenticated ? { json: { ...state.profile, roles: ['user'], permissions: [] } } :
       { status: 401, json: { error: { code: 'UNAUTHORIZED', message: 'unauthorized', request_id: 'test' } } });
     if (path === '/auth/register') { state.registered = true; return route.fulfill({ status: 202, body: '' }); }
     if (path === '/auth/register/verify') { state.authenticated = true; return route.fulfill({ status: 204 }); }

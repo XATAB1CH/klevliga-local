@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
 import { api, ApiError, type FeedParams, type ReportsParams, type SearchParams, type TopicsParams, type WatersParams } from './client';
-import type { Page, User } from './types';
+import type { AuditFilters, Page, Role, SessionUser, User } from './types';
 
 type CursorParams = { cursor?: string; limit?: number };
 
@@ -21,7 +21,7 @@ async function clearSession(client: QueryClient) {
 }
 
 async function loadCurrentUser(client: QueryClient, signal: AbortSignal) {
-  let user: User | null;
+  let user: SessionUser | null;
   try {
     user = await api.getMe(signal);
   } catch (error) {
@@ -30,8 +30,10 @@ async function loadCurrentUser(client: QueryClient, signal: AbortSignal) {
   }
   // An old session check can finish after logout even if an adapter ignores abort.
   signal.throwIfAborted();
-  const previous = client.getQueryData<User | null>(['me']);
-  if (previous?.id !== user?.id) await clearPrivateQueries(client);
+  const previous = client.getQueryData<SessionUser | null>(['me']);
+  if (previous?.id !== user?.id || JSON.stringify(previous?.permissions) !== JSON.stringify(user?.permissions)) {
+    await clearPrivateQueries(client);
+  }
   return user;
 }
 
@@ -202,7 +204,8 @@ export function useUploadAvatar() {
     mutationFn: (file: File) => api.uploadAvatar(file),
     onSuccess: (user) => {
       // A late upload must not restore a session that was logged out meanwhile.
-      if (qc.getQueryData<User | null>(['me'])?.id === user.id) qc.setQueryData(['me'], user);
+      const current = qc.getQueryData<SessionUser | null>(['me']);
+      if (current?.id === user.id) qc.setQueryData(['me'], { ...current, ...user });
     },
   });
 }
@@ -246,5 +249,47 @@ export function useUnfollow() {
 export function useFlag() {
   return useMutation({
     mutationFn: (p: { targetType: string; targetId: string; reason: string }) => api.flag(p.targetType, p.targetId, p.reason),
+  });
+}
+
+export function useManagedUsers(q: string) {
+  const { data: user } = useMe();
+  return useQuery({
+    queryKey: ['private', user?.id ?? null, 'admin', 'users', q],
+    queryFn: ({ signal }) => api.searchManagedUsers(q, signal),
+    enabled: !!user?.permissions.includes('users.manage') && q.trim().length >= 2,
+  });
+}
+
+export function useManagedUser(id: string) {
+  const { data: user } = useMe();
+  return useQuery({
+    queryKey: ['private', user?.id ?? null, 'admin', 'user', id],
+    queryFn: ({ signal }) => api.getManagedUser(id, signal),
+    enabled: !!user?.permissions.includes('users.manage') && !!id,
+  });
+}
+
+export function useAuditEvents(filters: AuditFilters) {
+  const { data: user } = useMe();
+  return useCursorPages(['private', user?.id ?? null, 'admin', 'audit', filters], {},
+    (cursor, signal) => api.getAuditEvents({ ...filters, cursor, limit: 20 }, signal), !!user?.permissions.includes('audit.view'));
+}
+
+export function useChangeAccess() {
+  const qc = useQueryClient();
+  const { data: user } = useMe();
+  const actorID = user?.id;
+  return useMutation({
+    mutationFn: (p: { id: string; reason: string } & ({ kind: 'roles'; roles: Role[] } | { kind: 'status'; status: 'active' | 'blocked' })) =>
+      p.kind === 'roles' ? api.changeRoles(p.id, p.roles, p.reason) : api.changeUserStatus(p.id, p.status, p.reason),
+    onSettled: async () => {
+      // A late response must not touch a newly logged in account's cache.
+      if (qc.getQueryData<User | null>(['me'])?.id !== actorID) return;
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['me'] }),
+        qc.invalidateQueries({ queryKey: ['private', actorID, 'admin'] }),
+      ]);
+    },
   });
 }

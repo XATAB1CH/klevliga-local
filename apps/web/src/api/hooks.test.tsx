@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, ApiError } from './client';
 import { useFeed, useLogin, useLogout, useMe, useNotifications, useRegister, useReports, useSearch, useTopics, useUploadAvatar, useVerifyRegistration, useWaters } from './hooks';
-import type { NotificationPage, User, Water } from './types';
+import type { NotificationPage, SessionUser, User, Water } from './types';
 
 const clients: QueryClient[] = [];
 
@@ -16,8 +16,8 @@ function setup(user: User | null = null) {
   return { client, wrapper };
 }
 
-function makeUser(id: string): User {
-  return { id, username: id, display_name: id, avatar_url: null, region: null, bio: null, joined_at: '2026-01-01T00:00:00Z' };
+function makeUser(id: string): SessionUser {
+  return { id, username: id, display_name: id, avatar_url: null, region: null, bio: null, joined_at: '2026-01-01T00:00:00Z', roles: ['user'], permissions: [] };
 }
 
 function makeWater(id: string): Water {
@@ -89,6 +89,32 @@ describe('list cache isolation', () => {
 });
 
 describe('session and personal data', () => {
+  it('erases administrative cache when privileges are revoked for the same account', async () => {
+    const admin: SessionUser = { ...makeUser('alice'), roles: ['user', 'admin'], permissions: ['users.manage', 'audit.view'] };
+    const { client, wrapper } = setup(admin);
+    client.setQueryData(['private', 'alice', 'admin', 'audit'], { sensitive: true });
+    vi.mocked(api.getMe).mockResolvedValue(makeUser('alice'));
+    const { result } = renderHook(() => useMe(), { wrapper });
+    await act(async () => {
+      const refreshed = await result.current.refetch();
+      expect(refreshed.error).toBeNull();
+      expect(refreshed.data?.permissions).toEqual([]);
+    });
+    expect(client.getQueryData<SessionUser>(['me'])?.permissions).toEqual([]);
+    expect(client.getQueryData(['private', 'alice', 'admin', 'audit'])).toBeUndefined();
+  });
+
+  it('preserves session permissions when an avatar response contains only a public profile', async () => {
+    const admin: SessionUser = { ...makeUser('alice'), roles: ['user', 'admin'], permissions: ['users.manage', 'audit.view'] };
+    const { client, wrapper } = setup(admin);
+    const { roles: _roles, permissions: _permissions, ...profile } = admin;
+    vi.spyOn(api, 'uploadAvatar').mockResolvedValue({ ...profile, avatar_url: '/avatar?v=2' });
+    const { result } = renderHook(() => useUploadAvatar(), { wrapper });
+    await act(async () => { await result.current.mutateAsync(new File(['png'], 'avatar.png', { type: 'image/png' })); });
+    expect(client.getQueryData<SessionUser>(['me'])?.permissions).toEqual(admin.permissions);
+    expect(client.getQueryData<SessionUser>(['me'])?.avatar_url).toBe('/avatar?v=2');
+  });
+
   it('does not request notifications for a guest', async () => {
     const notifications = vi.spyOn(api, 'getNotifications').mockResolvedValue(notificationPage('private'));
     const { wrapper } = setup();
@@ -139,7 +165,7 @@ describe('session and personal data', () => {
 
   it('waits for the authenticated profile before resolving login', async () => {
     vi.spyOn(api, 'login').mockResolvedValue(undefined);
-    const pending = deferred<User>();
+    const pending = deferred<SessionUser>();
     vi.mocked(api.getMe).mockReturnValue(pending.promise);
     const { client, wrapper } = setup();
     const { result } = renderHook(() => useLogin(), { wrapper });
@@ -203,7 +229,7 @@ describe('session and personal data', () => {
   });
 
   it('does not let a cancelled profile request erase the next account personal cache', async () => {
-    const staleProfile = deferred<User>();
+    const staleProfile = deferred<SessionUser>();
     let staleSignal: AbortSignal | undefined;
     vi.mocked(api.getMe).mockImplementationOnce((signal) => {
       staleSignal = signal;

@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from './client';
 import { useInfiniteFeed, useInfiniteNotifications, useInfinitePosts, useInfiniteReports, useInfiniteTopics, useInfiniteWaters, useLogin, useLogout, useReply } from './hooks';
-import type { NotificationPage, Post, Topic, User } from './types';
+import type { NotificationPage, Post, SessionUser, Topic, User } from './types';
 
 const clients: QueryClient[] = [];
 function setup(user: User | null = null) {
@@ -14,8 +14,8 @@ function setup(user: User | null = null) {
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   return { client, wrapper };
 }
-function makeUser(id: string): User {
-  return { id, username: id, display_name: id, avatar_url: null, region: null, bio: null, joined_at: '2026-01-01T00:00:00Z' };
+function makeUser(id: string): SessionUser {
+  return { id, username: id, display_name: id, avatar_url: null, region: null, bio: null, joined_at: '2026-01-01T00:00:00Z', roles: ['user'], permissions: [] };
 }
 function makeTopic(id: string): Topic {
   return { id, category_id: 'category', author_id: 'author', title: id, slug: id, body: id, type: 'discussion', pinned: false, locked: false,

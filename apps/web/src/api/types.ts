@@ -10,6 +10,40 @@ export interface User {
   joined_at: string;
 }
 
+export type Role = 'user' | 'moderator' | 'support' | 'admin';
+export type Permission = 'users.manage' | 'audit.view' | 'content.moderate' | 'support.handle';
+
+export interface SessionUser extends User {
+  roles: Role[];
+  permissions: Permission[];
+}
+
+export interface ManagedUser extends User {
+  roles: Role[];
+  status: 'active' | 'blocked';
+}
+
+export interface AuditEvent {
+  id: string;
+  actor_type: 'user' | 'bootstrap';
+  actor_id: string | null;
+  action: string;
+  target_type: string;
+  target_id: string;
+  reason: string;
+  request_id: string;
+  changes: Record<string, { before: string | Role[]; after: string | Role[] }>;
+  created_at: string;
+}
+
+export interface AuditFilters {
+  actor_id?: string;
+  target_id?: string;
+  action?: string;
+  from?: string;
+  until?: string;
+}
+
 export interface Category {
   id: string;
   name: string;

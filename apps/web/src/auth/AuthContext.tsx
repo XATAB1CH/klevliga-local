@@ -1,9 +1,9 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useLogin, useLogout, useMe, useRegister, useVerifyRegistration } from '../api/hooks';
-import type { User } from '../api/types';
+import type { SessionUser } from '../api/types';
 
 interface AuthContextValue {
-  user: User | null;
+  user: SessionUser | null;
   isLoading: boolean;
   error: Error | null;
   isLoggingOut: boolean;
