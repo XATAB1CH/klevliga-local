@@ -1,10 +1,14 @@
 package http
 
 import (
+	"errors"
+	"io"
+	"mime"
 	"net/http"
 
 	"github.com/XATAB1CH/klev-liga/internal/api/transport/http/dto"
 	"github.com/XATAB1CH/klev-liga/internal/domains/apperr"
+	"github.com/XATAB1CH/klev-liga/internal/services/avatar"
 )
 
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
@@ -125,4 +129,60 @@ func (h *Handler) getUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, dto.UserFromDomain(user))
+}
+
+func (h *Handler) uploadAvatar(w http.ResponseWriter, r *http.Request) {
+	user, ok := currentUser(r.Context())
+	if !ok {
+		writeError(w, r, apperr.ErrUnauthorized)
+		return
+	}
+	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || (contentType != "image/jpeg" && contentType != "image/png") {
+		writeError(w, r, apperr.ErrUnsupportedMedia)
+		return
+	}
+	if r.ContentLength > avatar.MaxUploadBytes {
+		writeError(w, r, apperr.ErrPayloadTooLarge)
+		return
+	}
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, avatar.MaxUploadBytes))
+	if err != nil {
+		var sizeErr *http.MaxBytesError
+		if errors.As(err, &sizeErr) {
+			writeError(w, r, apperr.ErrPayloadTooLarge)
+		} else {
+			writeError(w, r, err)
+		}
+		return
+	}
+	processed, err := avatar.Process(data, contentType)
+	if err != nil {
+		writeError(w, r, apperr.ErrValidation)
+		return
+	}
+	updated, err := h.auth.UpdateAvatar(r.Context(), user.ID, processed)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, dto.UserFromDomain(updated))
+}
+
+func (h *Handler) getAvatar(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		writeError(w, r, apperr.ErrValidation)
+		return
+	}
+	data, err := h.auth.GetAvatar(r.Context(), id)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }

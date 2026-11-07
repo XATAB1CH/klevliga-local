@@ -60,6 +60,10 @@ func publicErrorMessage(code string) string {
 		return "invalid email or password"
 	case "INVALID_VERIFICATION_CODE":
 		return "verification code is invalid or expired"
+	case "PAYLOAD_TOO_LARGE":
+		return "image exceeds the size limit"
+	case "UNSUPPORTED_MEDIA_TYPE":
+		return "only JPEG and PNG images are supported"
 	default:
 		return "internal server error"
 	}
@@ -83,6 +87,10 @@ func mapError(err error) (status int, code string) {
 		return http.StatusUnauthorized, "INVALID_CREDENTIALS"
 	case errors.Is(err, apperr.ErrInvalidVerificationCode):
 		return http.StatusBadRequest, "INVALID_VERIFICATION_CODE"
+	case errors.Is(err, apperr.ErrPayloadTooLarge):
+		return http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE"
+	case errors.Is(err, apperr.ErrUnsupportedMedia):
+		return http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE"
 	default:
 		return http.StatusInternalServerError, "INTERNAL"
 	}

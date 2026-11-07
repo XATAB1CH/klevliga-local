@@ -3,10 +3,15 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/color"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"log/slog"
 	"net/http"
@@ -32,6 +37,104 @@ import (
 	"github.com/XATAB1CH/klev-liga/migrations"
 	"github.com/XATAB1CH/klev-liga/pkg/pg"
 )
+
+func TestAvatarUploadRequiresSessionAndPublishesProcessedImage(t *testing.T) {
+	a := newIntegrationAPI(t)
+	var original bytes.Buffer
+	source := image.NewRGBA(image.Rect(0, 0, 24, 12))
+	for y := 0; y < 12; y++ {
+		for x := 0; x < 24; x++ {
+			source.Set(x, y, color.RGBA{R: 110, G: 170, B: 190, A: 255})
+		}
+	}
+	if err := png.Encode(&original, source); err != nil {
+		t.Fatal(err)
+	}
+	upload := func(cookie *http.Cookie, data []byte, contentType string) (*http.Response, []byte) {
+		t.Helper()
+		req, err := http.NewRequest(http.MethodPut, a.server.URL+"/api/v1/auth/avatar", bytes.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", contentType)
+		if cookie != nil {
+			req.AddCookie(cookie)
+		}
+		resp, err := a.server.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp, body
+	}
+	if resp, _ := upload(nil, original.Bytes(), "image/png"); resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("anonymous avatar upload: %d", resp.StatusCode)
+	}
+	if resp, _ := upload(a.cookie, original.Bytes(), "text/plain"); resp.StatusCode != http.StatusUnsupportedMediaType {
+		t.Fatalf("invalid MIME: %d", resp.StatusCode)
+	}
+	if resp, _ := upload(a.cookie, []byte("invalid image"), "image/png"); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("invalid bytes: %d", resp.StatusCode)
+	}
+	if resp, _ := upload(a.cookie, make([]byte, 5<<20+1), "image/png"); resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized image: %d", resp.StatusCode)
+	}
+	if status, _ := a.request(t, http.MethodGet, "/users/"+a.userID.String()+"/avatar", nil, nil); status != http.StatusNotFound {
+		t.Fatalf("missing avatar: %d", status)
+	}
+	resp, body := upload(a.cookie, original.Bytes(), "image/png")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("upload: %d %s", resp.StatusCode, body)
+	}
+	var result struct {
+		AvatarURL string `json:"avatar_url"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(result.AvatarURL, "/api/v1/users/"+a.userID.String()+"/avatar?v=") {
+		t.Fatalf("unexpected avatar URL: %q", result.AvatarURL)
+	}
+	getResp, err := a.server.Client().Get(a.server.URL + result.AvatarURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer getResp.Body.Close()
+	if getResp.StatusCode != http.StatusOK || getResp.Header.Get("Content-Type") != "image/jpeg" {
+		t.Fatalf("public avatar: status=%d type=%q", getResp.StatusCode, getResp.Header.Get("Content-Type"))
+	}
+	processed, err := io.ReadAll(getResp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := jpeg.Decode(bytes.NewReader(processed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Bounds().Dx() != 12 || decoded.Bounds().Dy() != 12 {
+		t.Fatalf("cropped image: %v", decoded.Bounds())
+	}
+	status, profile := a.request(t, http.MethodGet, "/auth/me", nil, a.cookie)
+	if status != http.StatusOK || !bytes.Contains(profile, []byte(result.AvatarURL)) {
+		t.Fatalf("profile was not updated: %d %s", status, profile)
+	}
+	otherID, otherCookie := a.newUser(t)
+	otherResponse, otherBody := upload(otherCookie, original.Bytes(), "image/png")
+	if otherResponse.StatusCode != http.StatusOK || !bytes.Contains(otherBody, []byte(otherID.String())) {
+		t.Fatalf("second user upload: %d %s", otherResponse.StatusCode, otherBody)
+	}
+	status, profile = a.request(t, http.MethodGet, "/auth/me", nil, a.cookie)
+	if status != http.StatusOK || !bytes.Contains(profile, []byte(result.AvatarURL)) {
+		t.Fatalf("another user's upload changed this profile: %d %s", status, profile)
+	}
+	if resp, _ := upload(a.cookie, original.Bytes(), "image/png"); resp.StatusCode != http.StatusOK {
+		t.Fatalf("replace avatar: %d", resp.StatusCode)
+	}
+}
 
 type integrationAPI struct {
 	pool     *pgxpool.Pool

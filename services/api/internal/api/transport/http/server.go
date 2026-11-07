@@ -35,10 +35,12 @@ func NewServer(h *Handler, addr string, log *slog.Logger) *Server {
 			r.Use(requireAuthMiddleware)
 			r.Post("/auth/logout", h.logout)
 			r.Get("/auth/me", h.me)
+			r.Put("/auth/avatar", h.uploadAvatar)
 		})
 
 		// Users.
 		r.Get("/users/{id}", h.getUser)
+		r.Get("/users/{id}/avatar", h.getAvatar)
 
 		// Feed.
 		r.Get("/feed", h.getFeed)

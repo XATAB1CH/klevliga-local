@@ -127,6 +127,12 @@ type User struct {
 	UpdatedAt    time.Time
 }
 
+type UserAvatar struct {
+	UserID    uuid.UUID
+	ImageData []byte
+	UpdatedAt time.Time
+}
+
 type UserProfile struct {
 	UserID      uuid.UUID
 	DisplayName string

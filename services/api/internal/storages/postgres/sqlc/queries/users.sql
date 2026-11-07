@@ -8,6 +8,17 @@ INSERT INTO user_profiles (user_id, display_name)
 VALUES ($1, $2)
 RETURNING *;
 
+-- name: UpsertUserAvatar :exec
+INSERT INTO user_avatars (user_id, image_data)
+VALUES ($1, $2)
+ON CONFLICT (user_id) DO UPDATE SET image_data = EXCLUDED.image_data, updated_at = now();
+
+-- name: GetUserAvatar :one
+SELECT image_data FROM user_avatars WHERE user_id = $1;
+
+-- name: UpdateUserAvatarURL :exec
+UPDATE user_profiles SET avatar_url = $2, updated_at = now() WHERE user_id = $1;
+
 -- name: RegistrationAvailable :one
 SELECT NOT EXISTS (
     SELECT 1 FROM users WHERE email = sqlc.arg('email') OR username = sqlc.arg('username')

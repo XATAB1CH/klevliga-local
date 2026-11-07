@@ -227,3 +227,17 @@ func (s *Service) Authenticate(ctx context.Context, rawToken string) (*authDomai
 func (s *Service) GetUser(ctx context.Context, id uuid.UUID) (*authDomain.User, error) {
 	return s.store.GetUserByID(ctx, id)
 }
+
+func (s *Service) UpdateAvatar(ctx context.Context, userID uuid.UUID, imageData []byte) (*authDomain.User, error) {
+	url := fmt.Sprintf("/api/v1/users/%s/avatar?v=%s", userID, uuid.NewString())
+	if err := s.store.WithinTx(ctx, func(ctx context.Context) error {
+		return s.store.SetUserAvatar(ctx, userID, imageData, url)
+	}); err != nil {
+		return nil, err
+	}
+	return s.store.GetUserByID(ctx, userID)
+}
+
+func (s *Service) GetAvatar(ctx context.Context, userID uuid.UUID) ([]byte, error) {
+	return s.store.GetUserAvatar(ctx, userID)
+}

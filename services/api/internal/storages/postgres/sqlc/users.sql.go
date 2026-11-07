@@ -104,6 +104,17 @@ func (q *Queries) GetPendingRegistrationForUpdate(ctx context.Context, email str
 	return i, err
 }
 
+const getUserAvatar = `-- name: GetUserAvatar :one
+SELECT image_data FROM user_avatars WHERE user_id = $1
+`
+
+func (q *Queries) GetUserAvatar(ctx context.Context, userID uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, getUserAvatar, userID)
+	var image_data []byte
+	err := row.Scan(&image_data)
+	return image_data, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT u.id, u.email, u.username, u.password_hash, u.status, u.created_at,
        p.display_name, p.bio, p.region, p.avatar_url, p.role
@@ -266,6 +277,20 @@ func (q *Queries) SearchUsers(ctx context.Context, arg SearchUsersParams) ([]Sea
 	return items, nil
 }
 
+const updateUserAvatarURL = `-- name: UpdateUserAvatarURL :exec
+UPDATE user_profiles SET avatar_url = $2, updated_at = now() WHERE user_id = $1
+`
+
+type UpdateUserAvatarURLParams struct {
+	UserID    uuid.UUID
+	AvatarUrl *string
+}
+
+func (q *Queries) UpdateUserAvatarURL(ctx context.Context, arg UpdateUserAvatarURLParams) error {
+	_, err := q.db.Exec(ctx, updateUserAvatarURL, arg.UserID, arg.AvatarUrl)
+	return err
+}
+
 const upsertPendingRegistration = `-- name: UpsertPendingRegistration :exec
 INSERT INTO pending_registrations (email, username, password_hash, code_hash, expires_at)
 VALUES ($1, $2, $3, $4, $5)
@@ -294,5 +319,21 @@ func (q *Queries) UpsertPendingRegistration(ctx context.Context, arg UpsertPendi
 		arg.CodeHash,
 		arg.ExpiresAt,
 	)
+	return err
+}
+
+const upsertUserAvatar = `-- name: UpsertUserAvatar :exec
+INSERT INTO user_avatars (user_id, image_data)
+VALUES ($1, $2)
+ON CONFLICT (user_id) DO UPDATE SET image_data = EXCLUDED.image_data, updated_at = now()
+`
+
+type UpsertUserAvatarParams struct {
+	UserID    uuid.UUID
+	ImageData []byte
+}
+
+func (q *Queries) UpsertUserAvatar(ctx context.Context, arg UpsertUserAvatarParams) error {
+	_, err := q.db.Exec(ctx, upsertUserAvatar, arg.UserID, arg.ImageData)
 	return err
 }

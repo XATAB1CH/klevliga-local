@@ -13,4 +13,6 @@ var (
 	ErrInvalidCredentials      = errors.New("invalid credentials")
 	ErrInternal                = errors.New("internal server error")
 	ErrInvalidVerificationCode = errors.New("invalid verification code")
+	ErrPayloadTooLarge         = errors.New("payload too large")
+	ErrUnsupportedMedia        = errors.New("unsupported media type")
 )

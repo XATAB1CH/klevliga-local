@@ -84,6 +84,28 @@ func (s *Store) CreateProfile(ctx context.Context, userID uuid.UUID, displayName
 	return nil
 }
 
+func (s *Store) SetUserAvatar(ctx context.Context, userID uuid.UUID, imageData []byte, avatarURL string) error {
+	if err := s.queries(ctx).UpsertUserAvatar(ctx, sqlc.UpsertUserAvatarParams{
+		UserID: userID, ImageData: imageData,
+	}); err != nil {
+		return wrapDBError("save user avatar", err)
+	}
+	if err := s.queries(ctx).UpdateUserAvatarURL(ctx, sqlc.UpdateUserAvatarURLParams{
+		UserID: userID, AvatarUrl: &avatarURL,
+	}); err != nil {
+		return wrapDBError("update user avatar url", err)
+	}
+	return nil
+}
+
+func (s *Store) GetUserAvatar(ctx context.Context, userID uuid.UUID) ([]byte, error) {
+	imageData, err := s.queries(ctx).GetUserAvatar(ctx, userID)
+	if err != nil {
+		return nil, wrapDBError("get user avatar", err)
+	}
+	return imageData, nil
+}
+
 func (s *Store) GetUserByEmail(ctx context.Context, email string) (*auth.User, error) {
 	row, err := s.queries(ctx).GetUserByEmail(ctx, email)
 	if err != nil {
