@@ -71,6 +71,9 @@ export const api = {
   verifyRegistration: (email: string, code: string) => apiFetch<void>('/auth/register/verify', { method: 'POST', body: JSON.stringify({ email, code }) }),
   logout: () => apiFetch<void>('/auth/logout', { method: 'POST' }),
   getUser: (id: string, signal?: AbortSignal) => apiFetch<User>(`/users/${id}`, { signal }),
+  uploadAvatar: (file: File) => apiFetch<User>('/auth/avatar', {
+    method: 'PUT', body: file, headers: { 'Content-Type': file.type },
+  }),
 
   // Reads
   getFeed: (p: FeedParams = {}, signal?: AbortSignal) => apiFetch<FeedPage>(`/feed${qs({ cursor: p.cursor, limit: p.limit, kind: p.kind === 'all' ? undefined : p.kind })}`, { signal }),

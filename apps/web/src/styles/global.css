@@ -64,3 +64,52 @@ select:focus-visible{outline:2px solid #45e1d4;outline-offset:2px}
   .dialog{padding:20px}
   .auth-actions{gap:12px}
 }
+
+/* Profile: a quiet water photograph frames the avatar without implying a location. */
+.profile-shell{overflow:hidden;background:#0d2632}
+.account{overflow:hidden}.account img{display:block;width:100%;height:100%;object-fit:cover;border-radius:50%}
+.profile-cover{height:210px;position:relative;background:linear-gradient(90deg,#051c27d9,#082a34a0 55%,#05243135),url('/images/sunset-hero.webp') center 54%/cover no-repeat}
+.profile-cover::after{content:'';position:absolute;inset:auto 0 0;height:90px;background:linear-gradient(transparent,#0d2632)}
+.profile-cover span{position:absolute;top:24px;left:38px;z-index:1;font-size:12px;letter-spacing:.12em;font-weight:700;color:#a5f4eb}
+.profile-content{position:relative;padding:0 38px 32px}
+.profile-identity{display:flex;align-items:flex-end;gap:22px;margin-top:-62px}
+.profile-avatar{position:relative;z-index:1;display:grid;place-items:center;flex:none;width:122px;height:122px;border-radius:50%;border:5px solid #0d2632;box-shadow:0 0 0 2px #5be1d6,0 12px 30px #00141e80;background:linear-gradient(145deg,#184c58,#0d303e);color:#6de5da;overflow:hidden}
+.profile-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.profile-heading{padding-bottom:8px;min-width:0}
+.profile-kicker{color:#50e7d9;letter-spacing:.1em;font-size:12px;font-weight:700}
+.profile-heading h2{font:800 clamp(23px,3vw,34px)/1.2 Manrope,sans-serif;margin:8px 0 3px;overflow-wrap:anywhere}
+.profile-heading p{margin:0;color:#9ebbc8;font-size:15px;overflow-wrap:anywhere}
+.profile-details{display:flex;flex-wrap:wrap;gap:10px 24px;margin-top:28px;padding:18px 0;border-top:1px solid #21434d;border-bottom:1px solid #21434d;color:#b4cbd4;font-size:14px}
+.profile-details span{display:inline-flex;align-items:center;gap:8px}.profile-details svg{color:#52e3d8}
+.profile-bio{max-width:70ch;margin:20px 0;color:#d2e1e7}
+.profile-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px 18px;margin:24px 0 6px}
+.profile-upload-hint{color:#8eabb9;font-size:13px;line-height:1.5}
+.visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.profile-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:27px}
+.profile-links a{display:flex;align-items:center;gap:15px;min-width:0;padding:18px;background:#102e3a;border:1px solid #25505a;border-radius:10px;transition:background .18s,border-color .18s}
+.profile-links a:hover{background:#153b46;border-color:#4dbfb7}
+.profile-links svg{flex:none;color:#58e1d5}
+.profile-links span{min-width:0}.profile-links strong,.profile-links small{display:block}.profile-links strong{font-size:16px}.profile-links small{margin-top:3px;color:#91adba;font-size:13px;line-height:1.45}
+.profile-footer{display:flex;justify-content:flex-end;margin-top:26px;padding-top:20px;border-top:1px solid #21434d}
+.profile-signout{border:0;background:transparent;color:#9bb5c2;font-size:14px;padding:9px 0}.profile-signout:hover{color:#eff7f9}.profile-signout:disabled{opacity:.5}
+@media(max-width:800px){
+  .bottom-nav .new-mobile{display:grid;place-items:center;flex:0 0 52px;align-self:center;width:52px;height:52px;min-height:52px;padding:0;border-radius:50%;line-height:1}
+  .bottom-nav .new-mobile svg{display:block;width:26px;height:26px}
+  .profile-cover{height:190px}
+  .profile-content{padding:0 24px 26px}
+  .profile-cover span{left:24px}
+}
+@media(max-width:560px){
+  .profile-cover{height:165px}
+  .profile-content{padding:0 20px 24px}
+  .profile-cover span{top:19px;left:20px;font-size:11px}
+  .profile-identity{display:block;margin-top:-52px}
+  .profile-avatar{width:104px;height:104px}
+  .profile-heading{padding:14px 0 0}
+  .profile-heading h2{font-size:25px}
+  .profile-details{margin-top:21px}
+  .profile-actions{align-items:flex-start;flex-direction:column}
+  .profile-actions .primary-btn{width:100%}
+  .profile-links{grid-template-columns:1fr}
+  .profile-footer{justify-content:flex-start}
+}

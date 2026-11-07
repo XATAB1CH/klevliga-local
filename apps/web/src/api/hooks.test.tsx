@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, ApiError } from './client';
-import { useFeed, useLogin, useLogout, useMe, useNotifications, useRegister, useReports, useSearch, useTopics, useVerifyRegistration, useWaters } from './hooks';
+import { useFeed, useLogin, useLogout, useMe, useNotifications, useRegister, useReports, useSearch, useTopics, useUploadAvatar, useVerifyRegistration, useWaters } from './hooks';
 import type { NotificationPage, User, Water } from './types';
 
 const clients: QueryClient[] = [];
@@ -165,6 +165,19 @@ describe('session and personal data', () => {
     expect(api.getMe).not.toHaveBeenCalled();
     await act(async () => { await result.current.verify.mutateAsync({ email: 'bob@example.com', code: '123456' }); });
     expect(client.getQueryData<User>(['me'])?.id).toBe('bob');
+  });
+
+  it('does not restore an old session when an avatar upload finishes after logout', async () => {
+    const pending = deferred<User>();
+    vi.spyOn(api, 'uploadAvatar').mockReturnValue(pending.promise);
+    vi.spyOn(api, 'logout').mockResolvedValue(undefined);
+    const { client, wrapper } = setup(makeUser('alice'));
+    const { result } = renderHook(() => ({ upload: useUploadAvatar(), logout: useLogout() }), { wrapper });
+    const completion = result.current.upload.mutateAsync(new File(['photo'], 'avatar.png', { type: 'image/png' }));
+    await waitFor(() => expect(api.uploadAvatar).toHaveBeenCalledTimes(1));
+    await act(async () => { await result.current.logout.mutateAsync(); });
+    await act(async () => { pending.resolve({ ...makeUser('alice'), avatar_url: '/api/v1/users/alice/avatar?v=1' }); await completion; });
+    expect(client.getQueryData(['me'])).toBeNull();
   });
 
   it('keeps the current session when the logout request fails', async () => {

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Bell, ChevronDown, Fish, MapPin, Menu, Search, UserRound, X } from 'lucide-react';
+import { useAuth } from '../auth/AuthContext';
 
 interface Props { menuOpen: boolean; onMenuToggle: () => void }
 
 export function Header({ menuOpen, onMenuToggle }: Props) {
+  const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -41,6 +43,8 @@ export function Header({ menuOpen, onMenuToggle }: Props) {
     </form>
     <button className="location" onClick={() => navigate('/waters')}><MapPin size={18} /> Водоёмы <ChevronDown size={15} /></button>
     <button className="icon-btn bell" onClick={() => navigate('/notifications')} aria-label="Уведомления"><Bell size={20} /></button>
-    <Link to="/profile" className="account" aria-label="Мой профиль"><UserRound size={21} /></Link>
+    <Link to="/profile" className="account" aria-label="Мой профиль">
+      {user?.avatar_url ? <img src={user.avatar_url} alt="" /> : <UserRound size={21} />}
+    </Link>
   </div></header>;
 }

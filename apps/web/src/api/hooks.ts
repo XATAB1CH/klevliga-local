@@ -196,6 +196,17 @@ export function useLogout() {
   });
 }
 
+export function useUploadAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => api.uploadAvatar(file),
+    onSuccess: (user) => {
+      // A late upload must not restore a session that was logged out meanwhile.
+      if (qc.getQueryData<User | null>(['me'])?.id === user.id) qc.setQueryData(['me'], user);
+    },
+  });
+}
+
 export function useCreateTopic() {
   const invalidate = useInvalidate();
   return useMutation({

@@ -19,19 +19,25 @@ const water = (id: number): Water => ({ id: String(id), name: 'Озеро ' + id
   region_id: null, description: 'Иллюстративная карточка', cover_url: null });
 
 async function mockApi(page: Page) {
-  const state = { authenticated: false, registered: false, failFeed: false, waterLimits: [] as string[], replyBody: '' };
+  const state = { authenticated: false, registered: false, failFeed: false, waterLimits: [] as string[], replyBody: '', profile: { ...user } as User };
+  const avatarPNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/mfoAAAAASUVORK5CYII=', 'base64');
   await page.route('https://fonts.googleapis.com/**', (route) => route.abort());
   await page.route('https://fonts.gstatic.com/**', (route) => route.abort());
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname.replace('/api/v1', '');
-    if (path === '/auth/me') return route.fulfill(state.authenticated ? { json: user } :
+    if (path === '/auth/me') return route.fulfill(state.authenticated ? { json: state.profile } :
       { status: 401, json: { error: { code: 'UNAUTHORIZED', message: 'unauthorized', request_id: 'test' } } });
     if (path === '/auth/register') { state.registered = true; return route.fulfill({ status: 202, body: '' }); }
     if (path === '/auth/register/verify') { state.authenticated = true; return route.fulfill({ status: 204 }); }
     if (path === '/auth/login') { state.authenticated = true; return route.fulfill({ status: 204 }); }
     if (path === '/auth/logout') { state.authenticated = false; return route.fulfill({ status: 204 }); }
+    if (path === '/auth/avatar' && request.method() === 'PUT') {
+      state.profile = { ...state.profile, avatar_url: `/api/v1/users/${user.id}/avatar?v=1` };
+      return route.fulfill({ json: state.profile });
+    }
+    if (path === `/users/${user.id}/avatar`) return route.fulfill({ contentType: 'image/png', body: avatarPNG });
     if (path === '/forum/categories') return route.fulfill({ json: [{ id: categoryId, name: 'Общие вопросы', slug: 'general', parent_id: null }] });
     if (path === '/feed') return route.fulfill(state.failFeed ?
       { status: 503, json: { error: { code: 'INTERNAL', message: 'unavailable', request_id: 'test' } } } :
@@ -62,6 +68,31 @@ async function mockApi(page: Page) {
   });
   return state;
 }
+
+test('profile avatar upload updates the card and mobile create button stays centered', async ({ page }, testInfo) => {
+  const state = await mockApi(page); state.authenticated = true;
+  await page.goto('/profile');
+  await expect(page.getByRole('heading', { name: user.display_name, exact: true })).toBeVisible();
+  const createButton = page.getByRole('button', { name: 'Создать', exact: true });
+  if (testInfo.project.name === 'mobile') {
+    const box = await createButton.boundingBox();
+    const icon = await createButton.locator('svg').boundingBox();
+    expect(box && icon && Math.abs(box.x + box.width / 2 - icon.x - icon.width / 2)).toBeLessThan(1);
+    expect(box && icon && Math.abs(box.y + box.height / 2 - icon.y - icon.height / 2)).toBeLessThan(1);
+    expect(await createButton.evaluate((element) => getComputedStyle(element).borderRadius)).toBe('50%');
+  }
+  const fileChooserPromise = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Загрузить аватар' }).click();
+  const fileChooser = await fileChooserPromise;
+  await fileChooser.setFiles({ name: 'avatar.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/mfoAAAAASUVORK5CYII=', 'base64') });
+  await expect(page.getByRole('status')).toHaveText('Аватар обновлён.');
+  await expect(page.locator('.profile-avatar img')).toBeVisible();
+  await expect(page.locator('.account img')).toBeVisible();
+  expect(await page.locator('.profile-avatar img').evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('profile-avatar.png'), fullPage: true });
+});
 
 test('server failure is shown with retry without a false empty feed', async ({ page }) => {
   const state = await mockApi(page); state.failFeed = true;
