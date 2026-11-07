@@ -1,0 +1,7 @@
+import klevliga.caddy
+
+# Local gateway, also suitable as the target of a configured HTTPS tunnel.
+:8090 {
+	bind 127.0.0.1
+	import klevliga_app
+}

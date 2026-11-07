@@ -1,0 +1,9 @@
+import klevliga.caddy
+
+klevliga.ru {
+	import klevliga_app
+}
+
+www.klevliga.ru {
+	redir https://klevliga.ru{uri} permanent
+}
