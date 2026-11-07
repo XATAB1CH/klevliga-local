@@ -91,6 +91,8 @@
 
 Для Windows настроен запуск без Docker: [локальные инструменты, запуск и тесты](docs/LOCAL_DEVELOPMENT.md). Скрипты создают отдельную тестовую базу и хранят данные PostgreSQL вне OneDrive.
 
+Подключение `klevliga.ru`, локальный HTTPS-шлюз и почта REG.RU: [настройка домена и почты](docs/DOMAIN_SETUP.md).
+
 ### 1. Запустить PostgreSQL
 
 ```bash
