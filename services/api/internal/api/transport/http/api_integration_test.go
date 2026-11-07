@@ -205,3 +205,75 @@ func TestDeletedTopicHidesPostsAndReports(t *testing.T) {
 		t.Errorf("GetReportByTopic: got %v, want not found", err)
 	}
 }
+
+func TestPostParentAndSubscriberNotifications(t *testing.T) {
+	a := newIntegrationAPI(t)
+	ctx := context.Background()
+	category, err := a.provider.Store().GetCategoryBySlug(ctx, "general")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerID, _ := a.newUser(t)
+	followerID, _ := a.newUser(t)
+	actorID, _ := a.newUser(t)
+	topic, err := a.provider.ForumService().CreateTopic(ctx, category.ID, ownerID, "Тема для подписчиков", "Начальное сообщение")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherTopic, err := a.provider.ForumService().CreateTopic(ctx, category.ID, ownerID, "Другая тема", "Начальное сообщение")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignParent, err := a.provider.ForumService().CreatePost(ctx, otherTopic.ID, ownerID, "Ответ в другой теме", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.provider.ForumService().CreatePost(ctx, topic.ID, actorID, "Некорректная ссылка", &foreignParent.ID); !errors.Is(err, apperr.ErrValidation) {
+		t.Fatalf("cross-topic parent: got %v, want validation error", err)
+	}
+	if err := a.provider.SocialService().Follow(ctx, followerID, "topic", topic.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.provider.ForumService().CreatePost(ctx, topic.ID, actorID, "Корректный ответ", nil); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := a.pool.Query(ctx, `
+		SELECT recipient_id, type, actor_id, target_id, target_url
+		FROM notifications
+		WHERE target_id = $1
+		ORDER BY recipient_id`, topic.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	types := make(map[uuid.UUID]string)
+	for rows.Next() {
+		var recipientID, notificationActorID, targetID uuid.UUID
+		var notificationType, targetURL string
+		if err := rows.Scan(&recipientID, &notificationType, &notificationActorID, &targetID, &targetURL); err != nil {
+			t.Fatal(err)
+		}
+		if notificationActorID != actorID || targetID != topic.ID || targetURL != "/forum/topics/"+topic.ID.String() {
+			t.Errorf("unexpected notification target: actor=%s target=%s url=%q", notificationActorID, targetID, targetURL)
+		}
+		types[recipientID] = notificationType
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(types) != 2 || types[ownerID] != "topic_reply" || types[followerID] != "followed_topic" {
+		t.Fatalf("notifications: got %#v", types)
+	}
+	if _, exists := types[actorID]; exists {
+		t.Fatal("reply author received a notification about their own reply")
+	}
+}
+
+func TestModerationRejectsMissingTarget(t *testing.T) {
+	a := newIntegrationAPI(t)
+	_, err := a.provider.ModerationService().Flag(context.Background(), a.userID, "topic", uuid.New(), "Достаточно подробная причина жалобы")
+	if !errors.Is(err, apperr.ErrNotFound) {
+		t.Fatalf("got %v, want not found", err)
+	}
+}
