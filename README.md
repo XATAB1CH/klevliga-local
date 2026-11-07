@@ -20,7 +20,7 @@
 
 - Загрузка медиа: endpoints есть, но возвращают `NOT_IMPLEMENTED`.
 - S3/object storage и очистка EXIF/GPS для изображений.
-- Email verification / password recovery.
+- Password recovery.
 - PostGIS и точные геозапросы.
 - Marketplace, AI assistant, realtime-функции — только как будущие/placeholder-направления.
 - Полноценный список подписок и редактирование профиля.
@@ -131,6 +131,11 @@ auth:
   cookie_name: klevliga_session
   cookie_secure: false
   cookie_domain: ""
+  verification_ttl: 10m
+  verification_secret: ${AUTH_VERIFICATION_SECRET:klevliga-local-development-only}
+
+mail:
+  mode: log
 
 logger:
   title: klevliga-api

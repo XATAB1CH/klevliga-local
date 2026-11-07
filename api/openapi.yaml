@@ -26,7 +26,7 @@ paths:
   /auth/register:
     post:
       tags: [Auth]
-      summary: Регистрация пользователя
+      summary: Начать регистрацию и отправить код подтверждения
       operationId: register
       requestBody:
         required: true
@@ -40,7 +40,26 @@ paths:
                 username: {type: string, minLength: 3, maxLength: 32}
                 password: {type: string, minLength: 12, maxLength: 128}
       responses:
-        '201': {description: Пользователь создан без сессии; для входа вызвать POST /auth/login}
+        '202': {description: Код подтверждения отправлен; аккаунт ещё не создан}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /auth/register/verify:
+    post:
+      tags: [Auth]
+      summary: Подтвердить почту, завершить регистрацию и установить сессию
+      operationId: verifyRegistration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code]
+              properties:
+                email: {type: string, format: email, maxLength: 254}
+                code: {type: string, pattern: '^[0-9]{6}$'}
+      responses:
+        '204': {description: Аккаунт создан, HttpOnly session cookie установлена}
         '400': {$ref: '#/components/responses/BadRequest'}
         '409': {$ref: '#/components/responses/Conflict'}
   /auth/login:
