@@ -99,7 +99,7 @@ test('modal traps focus, closes with Escape, and restores the trigger', async ({
   await expect(dialog).toHaveCount(0); await expect(trigger).toBeFocused();
 });
 
-test('registration verifies email and opens an authenticated session', async ({ page }) => {
+test('registration verifies email and opens an authenticated session', async ({ page }, testInfo) => {
   const state = await mockApi(page); await page.goto('/profile');
   await page.getByRole('button', { name: 'Войти / Регистрация' }).click();
   const dialog = page.getByRole('dialog');
@@ -111,6 +111,14 @@ test('registration verifies email and opens an authenticated session', async ({ 
   await page.keyboard.press('Enter');
   await expect(dialog.getByRole('status')).toContainText('Мы отправили шестизначный код');
   expect(state.registered).toBe(true); expect(state.authenticated).toBe(false);
+  await expect(dialog.getByLabel('Код подтверждения')).toBeFocused();
+  const confirmButton = dialog.getByRole('button', { name: 'Подтвердить и войти' });
+  const restartButton = dialog.getByRole('button', { name: 'Изменить данные или отправить код снова' });
+  const confirmBox = await confirmButton.boundingBox();
+  const restartBox = await restartButton.boundingBox();
+  expect(confirmBox && restartBox && restartBox.y - confirmBox.y - confirmBox.height).toBeGreaterThanOrEqual(10);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('verification-dialog.png') });
   await dialog.getByLabel('Код подтверждения').fill('123456');
   await page.keyboard.press('Enter');
   await expect(dialog).toHaveCount(0);
@@ -120,6 +128,10 @@ test('registration verifies email and opens an authenticated session', async ({ 
 test('search works by keyboard at both viewport sizes and does not overflow', async ({ page }, testInfo) => {
   await mockApi(page); await page.goto('/');
   await expect(page.getByRole('button', { name: topic.title, exact: true })).toBeVisible();
+  expect(await page.locator('.app').evaluate((element) => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(15);
+  if (testInfo.project.name === 'mobile') {
+    expect(await page.locator('.bottom-nav a').first().evaluate((element) => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(12);
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('home-layout.png'), fullPage: true });
   const toggle = page.getByRole('button', { name: 'Открыть поиск' });

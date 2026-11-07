@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { Dialog } from './Dialog';
 import { errorMessage } from './QueryState';
@@ -14,6 +14,8 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const codeInput = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (mode === 'verify') codeInput.current?.focus(); }, [mode]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (busy) return;
@@ -51,14 +53,16 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
       {mode === 'register' && <label>Повторите пароль<input type="password" required minLength={12} maxLength={128}
         autoComplete="new-password" value={passwordConfirmation} onChange={(e) => setPasswordConfirmation(e.target.value)} placeholder="••••••••" /></label>}
       {mode === 'verify' && <><p className="muted">Введите код из письма. Он действует 10 минут.</p>
-        <label>Код подтверждения<input data-autofocus className="verification-code" type="text" required inputMode="numeric"
+        <label>Код подтверждения<input ref={codeInput} className="verification-code" type="text" required inputMode="numeric"
           autoComplete="one-time-code" pattern="[0-9]{6}" minLength={6} maxLength={6} value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="000000" /></label></>}
       {error && <p className="form-error" role="alert">{error}</p>}
-      <button type="submit" className="primary-btn" disabled={busy}>
-        {busy ? 'Подождите…' : mode === 'login' ? 'Войти' : mode === 'register' ? 'Создать аккаунт' : 'Подтвердить и войти'}
-      </button>
-      {mode === 'verify' && <button type="button" className="choice" onClick={() => { setMode('register'); setCode(''); setNotice(null); setError(null); }}>Изменить данные или отправить код снова</button>}
+      <div className="auth-actions">
+        <button type="submit" className="primary-btn" disabled={busy}>
+          {busy ? 'Подождите…' : mode === 'login' ? 'Войти' : mode === 'register' ? 'Создать аккаунт' : 'Подтвердить и войти'}
+        </button>
+        {mode === 'verify' && <button type="button" className="choice" onClick={() => { setMode('register'); setCode(''); setNotice(null); setError(null); }}>Изменить данные или отправить код снова</button>}
+      </div>
     </fieldset></form>
   </Dialog>;
 }

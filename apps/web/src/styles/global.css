@@ -23,3 +23,44 @@ select:focus-visible{outline:2px solid #45e1d4;outline-offset:2px}
 @media(max-width:800px){.post-card{grid-template-columns:48px minmax(0,1fr);grid-template-areas:'avatar content' 'stats stats'}.post-card>.post-stats{grid-column:1/-1;grid-row:2;display:flex;align-items:center}.header-inner{gap:8px}.bottom-nav a{justify-content:center;min-height:48px}.topic-page{padding:18px}}
 @media(max-width:560px){.mobile-search{display:grid;margin-left:auto}.search-field{display:none}.search-field.search-expanded{display:flex;position:absolute;left:8px;right:8px;top:7px;width:auto;min-width:0;max-width:none;height:45px;margin:0;background:#102d39;z-index:101;padding-left:12px}.search-field.search-expanded input{display:block;font-size:16px}.search-field.search-expanded .icon-btn{flex-shrink:0}.post-card{grid-template-columns:44px minmax(0,1fr);grid-template-areas:'avatar content' 'stats stats'}.post-stats{flex-wrap:wrap}.post-meta{white-space:normal;overflow:visible}.page-header{flex-wrap:wrap}.dialog{max-height:calc(100dvh - 24px);max-width:calc(100vw - 24px)}.dialog input,.dialog textarea,.dialog select,.reply-form textarea{font-size:16px}.dialog-head h2{padding-right:12px}.water-header{padding:40px 20px}.primary-btn{min-height:44px}.search-field:focus-within{left:8px;right:8px;top:7px}.topic-page h1{font-size:25px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{scroll-behavior:auto!important}}
+
+/* Readable type scale across the feed, sidebar, widgets and mobile navigation. */
+.app{font-size:15px;line-height:1.5}
+.header-nav a,.location,.sidebar-primary a,.categories a{font-size:14px}
+.search-field input{font-size:14px}
+.search-field kbd,.desktop-side-label{font-size:12px}
+.side-waters b,.feed-bottom,.widget-title a,.top-list button,.water-grid b{font-size:13px}
+.side-waters small,.top-list small,.water-grid small,.mini-social{font-size:12px}
+.eyebrow,.post-badge,.water-card span{font-size:12px}
+.tabs-scroll button,.sort-control,.post-meta,.post-stats,.photo-name{font-size:13px}
+.post-desc,.water-card p,.report-link p{font-size:15px;line-height:1.6}
+.widget-title h3{font-size:16px}
+.top-list button{line-height:1.45}
+.tiny{font-size:13px}
+.primary-btn,.secondary-btn,.choice{font-size:14px}
+.dialog{font-size:16px;line-height:1.5}
+.dialog .success-message{overflow-wrap:anywhere}
+.dialog input.verification-code{font-size:22px;letter-spacing:.25em;text-align:center;font-variant-numeric:tabular-nums}
+.auth-actions{display:flex;flex-direction:column;align-items:stretch;gap:12px;margin-top:24px}
+.auth-actions .primary-btn,.auth-actions .choice{width:100%;min-height:48px;margin:0;white-space:normal;text-align:center;line-height:1.4}
+.auth-actions .choice{background:transparent;color:#80e9df;border-color:#346874}
+.auth-actions .choice:hover{background:#173846;color:#d8fffa}
+@media(max-width:800px){
+  .sidebar-primary a,.categories a,.mobile-quick-list a,.section-toggle{font-size:15px}
+  .mobile-forum-toggle{font-size:15px}
+  .mobile-forum-toggle span{font-size:13px}
+  .bottom-nav a,.bottom-nav button{font-size:12px}
+  .bottom-nav{height:74px}
+}
+@media(max-width:560px){
+  .eyebrow{font-size:11px}
+  .hero{height:auto;min-height:250px}
+  .hero p{font-size:14px}
+  .primary-btn{font-size:14px}
+  .tabs-scroll button{font-size:14px}
+  .post-meta,.post-stats{font-size:13px}
+  .post-desc{font-size:15px}
+  .post-stats small{font-size:12px}
+  .dialog{padding:20px}
+  .auth-actions{gap:12px}
+}
