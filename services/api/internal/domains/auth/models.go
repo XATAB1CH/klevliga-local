@@ -19,7 +19,7 @@ type User struct {
 	Bio          *string
 	Region       *string
 	AvatarURL    *string
-	Role         string
+	Roles        []string
 	CreatedAt    time.Time
 }
 

@@ -54,6 +54,8 @@ func publicErrorMessage(code string) string {
 		return "authentication required"
 	case "FORBIDDEN":
 		return "action is not allowed"
+	case "LAST_ADMIN_REQUIRED":
+		return "at least one active administrator must remain"
 	case "NOT_IMPLEMENTED":
 		return "this feature is not available yet"
 	case "INVALID_CREDENTIALS":
@@ -71,6 +73,8 @@ func publicErrorMessage(code string) string {
 
 func mapError(err error) (status int, code string) {
 	switch {
+	case errors.Is(err, apperr.ErrLastAdmin):
+		return http.StatusConflict, "LAST_ADMIN_REQUIRED"
 	case errors.Is(err, apperr.ErrNotFound):
 		return http.StatusNotFound, "NOT_FOUND"
 	case errors.Is(err, apperr.ErrConflict):

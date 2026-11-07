@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: КлёвЛига MVP API
-  version: 0.1.0
+  version: 0.2.0
   description: >-
     Контракт существующего Go MVP API. Публичные чтения разрешены без входа,
     операции записи требуют server-side session cookie. Загрузка медиа пока недоступна
@@ -22,6 +22,7 @@ tags:
   - {name: Notifications}
   - {name: Media}
   - {name: Moderation}
+  - {name: Administration}
 paths:
   /auth/register:
     post:
@@ -99,7 +100,7 @@ paths:
           description: Профиль текущего пользователя
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/User'}
+              schema: {$ref: '#/components/schemas/SessionUser'}
         '401': {$ref: '#/components/responses/Unauthorized'}
   /auth/avatar:
     put:
@@ -512,6 +513,159 @@ paths:
                 reason: {type: string, minLength: 10, maxLength: 3000}
       responses:
         '201': {description: Жалоба зарегистрирована}
+  /admin/users:
+    get:
+      tags: [Administration]
+      summary: Поиск активных и заблокированных участников для администратора
+      description: Требуется users.manage. Ищет по нику и отображаемому имени; email не возвращается. До limit результатов, для дальнейшего поиска нужно уточнить q.
+      operationId: searchManagedUsers
+      security: [{sessionCookie: []}]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: {type: string, minLength: 2, maxLength: 200}
+        - {$ref: '#/components/parameters/Limit'}
+      responses:
+        '200':
+          description: Результаты поиска; Cache-Control no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/ManagedUser'}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /admin/users/{id}:
+    get:
+      tags: [Administration]
+      summary: Получить роли и статус участника
+      description: Требуется users.manage. Служебные сведения не входят в публичный профиль.
+      operationId: getManagedUser
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      responses:
+        '200':
+          description: Участник; Cache-Control no-store
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ManagedUser'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /admin/users/{id}/roles:
+    put:
+      tags: [Administration]
+      summary: Заменить полный набор ролей участника
+      description: >-
+        Требуется users.manage. user обязателен, роли можно совмещать.
+        Причина и изменение записываются в аудит в одной транзакции.
+        Повтор того же набора ролей не создаёт новое событие.
+        Браузерный Origin должен соответствовать Host; cross-site запись запрещена.
+      operationId: changeUserRoles
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [roles, reason]
+              properties:
+                roles: {$ref: '#/components/schemas/Roles'}
+                reason: {type: string, minLength: 3, maxLength: 1000}
+      responses:
+        '204': {description: Роли сохранены; права проверяются заново при следующем запросе}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409':
+          description: LAST_ADMIN_REQUIRED — должен остаться хотя бы один активный администратор
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+  /admin/users/{id}/status:
+    put:
+      tags: [Administration]
+      summary: Заблокировать или разблокировать аккаунт
+      description: >-
+        Требуется users.manage. Блокировка отзывает все действующие сессии атомарно с аудитом.
+        Разблокировка не восстанавливает старые сессии. Нельзя блокировать последнего активного администратора.
+        Повтор текущего статуса не создаёт событие. Для браузера требуется same-host Origin.
+      operationId: changeUserStatus
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Id'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, reason]
+              properties:
+                status: {type: string, enum: [active, blocked]}
+                reason: {type: string, minLength: 3, maxLength: 1000}
+      responses:
+        '204': {description: Статус сохранён}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409':
+          description: LAST_ADMIN_REQUIRED — должен остаться хотя бы один активный администратор
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+  /admin/audit-events:
+    get:
+      tags: [Administration]
+      summary: Журнал служебных изменений
+      description: Требуется audit.view. Только чтение, от новых записей к старым, Cache-Control no-store. Параметры фильтра сохраняются при переходе по cursor.
+      operationId: listAuditEvents
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Cursor'}
+        - {$ref: '#/components/parameters/Limit'}
+        - name: actor_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: target_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: action
+          in: query
+          schema: {type: string, maxLength: 100}
+        - name: from
+          in: query
+          description: Начало периода включительно; RFC3339
+          schema: {type: string, format: date-time}
+        - name: until
+          in: query
+          description: Конец периода исключительно; позже from; RFC3339
+          schema: {type: string, format: date-time}
+      responses:
+        '200':
+          description: Страница журнала
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/AuditEvent'}}
+                  next_cursor: {type: string, nullable: true}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
 components:
   securitySchemes:
     sessionCookie:
@@ -533,6 +687,11 @@ components:
       in: query
       schema: {type: integer, minimum: 1, maximum: 100, default: 20}
   responses:
+    Forbidden:
+      description: Недостаточно полномочий или браузерный запрос с чужого origin
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
     NotImplemented:
       description: Функция пока недоступна; запрос не выполнен
       content:
@@ -559,6 +718,59 @@ components:
         application/json:
           schema: {$ref: '#/components/schemas/ApiError'}
   schemas:
+    Roles:
+      type: array
+      description: Полный набор ролей, всегда включает user; дубликаты запрещены
+      minItems: 1
+      maxItems: 4
+      uniqueItems: true
+      items: {type: string, enum: [user, moderator, support, admin]}
+    SessionUser:
+      allOf:
+        - {$ref: '#/components/schemas/User'}
+        - type: object
+          required: [roles, permissions]
+          properties:
+            roles: {$ref: '#/components/schemas/Roles'}
+            permissions:
+              type: array
+              items: {type: string, enum: [users.manage, audit.view, content.moderate, support.handle]}
+    ManagedUser:
+      allOf:
+        - {$ref: '#/components/schemas/User'}
+        - type: object
+          required: [roles, status]
+          properties:
+            roles: {$ref: '#/components/schemas/Roles'}
+            status: {type: string, enum: [active, blocked]}
+    AuditEvent:
+      type: object
+      required: [id, actor_type, actor_id, action, target_type, target_id, reason, request_id, changes, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        actor_type: {type: string, enum: [user, bootstrap]}
+        actor_id: {type: string, format: uuid, nullable: true}
+        action: {type: string, enum: [admin.bootstrap, user.roles_changed, user.status_changed]}
+        target_type: {type: string, enum: [user]}
+        target_id: {type: string, format: uuid}
+        reason: {type: string, minLength: 3, maxLength: 1000}
+        request_id: {type: string}
+        changes:
+          type: object
+          description: Только разрешённые сервисом изменения roles/status, без секретов и переписки
+          additionalProperties:
+            type: object
+            required: [before, after]
+            properties:
+              before:
+                oneOf:
+                  - {type: string}
+                  - {$ref: '#/components/schemas/Roles'}
+              after:
+                oneOf:
+                  - {type: string}
+                  - {$ref: '#/components/schemas/Roles'}
+        created_at: {type: string, format: date-time}
     ApiError:
       type: object
       required: [error]

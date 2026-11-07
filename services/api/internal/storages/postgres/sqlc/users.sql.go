@@ -15,7 +15,7 @@ import (
 const createProfile = `-- name: CreateProfile :one
 INSERT INTO user_profiles (user_id, display_name)
 VALUES ($1, $2)
-RETURNING user_id, display_name, bio, region, avatar_url, role, updated_at
+RETURNING user_id, display_name, bio, region, avatar_url, updated_at, roles
 `
 
 type CreateProfileParams struct {
@@ -32,8 +32,8 @@ func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (U
 		&i.Bio,
 		&i.Region,
 		&i.AvatarUrl,
-		&i.Role,
 		&i.UpdatedAt,
+		&i.Roles,
 	)
 	return i, err
 }
@@ -117,7 +117,7 @@ func (q *Queries) GetUserAvatar(ctx context.Context, userID uuid.UUID) ([]byte, 
 
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT u.id, u.email, u.username, u.password_hash, u.status, u.created_at,
-       p.display_name, p.bio, p.region, p.avatar_url, p.role
+       p.display_name, p.bio, p.region, p.avatar_url, p.roles
 FROM users u
 JOIN user_profiles p ON p.user_id = u.id
 WHERE u.email = $1
@@ -134,7 +134,7 @@ type GetUserByEmailRow struct {
 	Bio          *string
 	Region       *string
 	AvatarUrl    *string
-	Role         string
+	Roles        []string
 }
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
@@ -151,14 +151,14 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEm
 		&i.Bio,
 		&i.Region,
 		&i.AvatarUrl,
-		&i.Role,
+		&i.Roles,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT u.id, u.email, u.username, u.password_hash, u.status, u.created_at,
-       p.display_name, p.bio, p.region, p.avatar_url, p.role
+       p.display_name, p.bio, p.region, p.avatar_url, p.roles
 FROM users u
 JOIN user_profiles p ON p.user_id = u.id
 WHERE u.id = $1
@@ -175,7 +175,7 @@ type GetUserByIDRow struct {
 	Bio          *string
 	Region       *string
 	AvatarUrl    *string
-	Role         string
+	Roles        []string
 }
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error) {
@@ -192,7 +192,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow
 		&i.Bio,
 		&i.Region,
 		&i.AvatarUrl,
-		&i.Role,
+		&i.Roles,
 	)
 	return i, err
 }

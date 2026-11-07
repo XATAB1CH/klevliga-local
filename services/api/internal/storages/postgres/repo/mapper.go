@@ -57,7 +57,7 @@ func mapUser(
 	createdAt time.Time,
 	displayName string,
 	bio, region, avatarURL *string,
-	role string,
+	roles []string,
 ) *auth.User {
 	return &auth.User{
 		ID:           id,
@@ -69,7 +69,7 @@ func mapUser(
 		Bio:          bio,
 		Region:       region,
 		AvatarURL:    avatarURL,
-		Role:         role,
+		Roles:        roles,
 		CreatedAt:    createdAt,
 	}
 }

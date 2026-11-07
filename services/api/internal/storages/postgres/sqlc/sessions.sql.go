@@ -15,14 +15,17 @@ import (
 
 const createSession = `-- name: CreateSession :one
 INSERT INTO sessions (user_id, token_hash, expires_at)
-VALUES ($1, $2, $3)
-RETURNING id, user_id, expires_at, created_at
+SELECT u.id, $1::bytea, $2::timestamptz
+FROM users u
+WHERE u.id = $3 AND u.status = 'active'
+FOR SHARE
+RETURNING sessions.id, sessions.user_id, sessions.expires_at, sessions.created_at
 `
 
 type CreateSessionParams struct {
-	UserID    uuid.UUID
 	TokenHash []byte
 	ExpiresAt time.Time
+	UserID    uuid.UUID
 }
 
 type CreateSessionRow struct {
@@ -33,7 +36,7 @@ type CreateSessionRow struct {
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (CreateSessionRow, error) {
-	row := q.db.QueryRow(ctx, createSession, arg.UserID, arg.TokenHash, arg.ExpiresAt)
+	row := q.db.QueryRow(ctx, createSession, arg.TokenHash, arg.ExpiresAt, arg.UserID)
 	var i CreateSessionRow
 	err := row.Scan(
 		&i.ID,

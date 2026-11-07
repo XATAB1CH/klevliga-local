@@ -49,14 +49,14 @@ DELETE FROM pending_registrations WHERE email = $1;
 
 -- name: GetUserByEmail :one
 SELECT u.id, u.email, u.username, u.password_hash, u.status, u.created_at,
-       p.display_name, p.bio, p.region, p.avatar_url, p.role
+       p.display_name, p.bio, p.region, p.avatar_url, p.roles
 FROM users u
 JOIN user_profiles p ON p.user_id = u.id
 WHERE u.email = $1;
 
 -- name: GetUserByID :one
 SELECT u.id, u.email, u.username, u.password_hash, u.status, u.created_at,
-       p.display_name, p.bio, p.region, p.avatar_url, p.role
+       p.display_name, p.bio, p.region, p.avatar_url, p.roles
 FROM users u
 JOIN user_profiles p ON p.user_id = u.id
 WHERE u.id = $1;

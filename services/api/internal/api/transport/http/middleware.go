@@ -3,12 +3,14 @@ package http
 import (
 	"log/slog"
 	"net/http"
+	"net/url"
 	"runtime/debug"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/XATAB1CH/klev-liga/internal/domains/apperr"
+	authDomain "github.com/XATAB1CH/klev-liga/internal/domains/auth"
 	authSvc "github.com/XATAB1CH/klev-liga/internal/services/auth"
 )
 
@@ -90,6 +92,46 @@ func requireAuthMiddleware(next http.Handler) http.Handler {
 type statusRecorder struct {
 	http.ResponseWriter
 	status int
+}
+
+func requirePermission(permission authDomain.Permission) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			user, ok := currentUser(r.Context())
+			if !ok {
+				writeError(w, r, apperr.ErrUnauthorized)
+				return
+			}
+			if !user.Can(permission) {
+				writeError(w, r, apperr.ErrForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// Browser writes must originate on this host. Requests without Origin remain
+// usable by local scripts; JSON content type is required by the handlers.
+func adminRequestMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			origin := r.Header.Get("Origin")
+			if origin != "" {
+				u, err := url.Parse(origin)
+				if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host != r.Host || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+					writeError(w, r, apperr.ErrForbidden)
+					return
+				}
+			}
+			if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+				writeError(w, r, apperr.ErrForbidden)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (r *statusRecorder) WriteHeader(status int) {

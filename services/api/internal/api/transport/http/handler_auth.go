@@ -110,7 +110,8 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, dto.UserFromDomain(user))
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, dto.SessionUser{User: dto.UserFromDomain(user), Roles: user.Roles, Permissions: user.Permissions()})
 }
 
 func (h *Handler) getUser(w http.ResponseWriter, r *http.Request) {

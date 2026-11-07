@@ -1,7 +1,10 @@
 -- name: CreateSession :one
 INSERT INTO sessions (user_id, token_hash, expires_at)
-VALUES ($1, $2, $3)
-RETURNING id, user_id, expires_at, created_at;
+SELECT u.id, sqlc.arg('token_hash')::bytea, sqlc.arg('expires_at')::timestamptz
+FROM users u
+WHERE u.id = sqlc.arg('user_id') AND u.status = 'active'
+FOR SHARE
+RETURNING sessions.id, sessions.user_id, sessions.expires_at, sessions.created_at;
 
 -- name: GetSessionByTokenHash :one
 SELECT id, user_id, expires_at, revoked_at

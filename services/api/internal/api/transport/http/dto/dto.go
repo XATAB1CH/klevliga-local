@@ -57,6 +57,13 @@ type User struct {
 	JoinedAt    time.Time `json:"joined_at"`
 }
 
+// SessionUser adds private authorization data only to /auth/me.
+type SessionUser struct {
+	*User
+	Roles       []string          `json:"roles"`
+	Permissions []auth.Permission `json:"permissions"`
+}
+
 func UserFromDomain(u *auth.User) *User {
 	if u == nil {
 		return nil

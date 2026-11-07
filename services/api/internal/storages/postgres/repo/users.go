@@ -114,7 +114,7 @@ func (s *Store) GetUserByEmail(ctx context.Context, email string) (*auth.User, e
 
 	return mapUser(
 		row.ID, row.Email, row.Username, row.PasswordHash, row.Status, row.CreatedAt,
-		row.DisplayName, row.Bio, row.Region, row.AvatarUrl, row.Role,
+		row.DisplayName, row.Bio, row.Region, row.AvatarUrl, row.Roles,
 	), nil
 }
 
@@ -126,7 +126,7 @@ func (s *Store) GetUserByID(ctx context.Context, id uuid.UUID) (*auth.User, erro
 
 	return mapUser(
 		row.ID, row.Email, row.Username, row.PasswordHash, row.Status, row.CreatedAt,
-		row.DisplayName, row.Bio, row.Region, row.AvatarUrl, row.Role,
+		row.DisplayName, row.Bio, row.Region, row.AvatarUrl, row.Roles,
 	), nil
 }
 
@@ -143,7 +143,7 @@ func (s *Store) SearchUsers(ctx context.Context, q string, limit int32) ([]*auth
 	for _, row := range rows {
 		users = append(users, mapUser(
 			row.ID, "", row.Username, "", auth.UserStatusActive, row.CreatedAt,
-			row.DisplayName, row.Bio, row.Region, row.AvatarUrl, "",
+			row.DisplayName, row.Bio, row.Region, row.AvatarUrl, nil,
 		))
 	}
 

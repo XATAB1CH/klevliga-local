@@ -2,10 +2,12 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/XATAB1CH/klev-liga/internal/domains/apperr"
 	"github.com/XATAB1CH/klev-liga/internal/domains/auth"
 	"github.com/XATAB1CH/klev-liga/internal/storages/postgres/sqlc"
 )
@@ -17,7 +19,11 @@ func (s *Store) CreateSession(ctx context.Context, userID uuid.UUID, tokenHash [
 		ExpiresAt: expiresAt,
 	})
 	if err != nil {
-		return nil, wrapDBError("create session", err)
+		err = wrapDBError("create session", err)
+		if errors.Is(err, apperr.ErrNotFound) {
+			return nil, apperr.ErrForbidden
+		}
+		return nil, err
 	}
 
 	return &auth.Session{

@@ -15,4 +15,5 @@ var (
 	ErrInvalidVerificationCode = errors.New("invalid verification code")
 	ErrPayloadTooLarge         = errors.New("payload too large")
 	ErrUnsupportedMedia        = errors.New("unsupported media type")
+	ErrLastAdmin               = errors.New("last active administrator required")
 )

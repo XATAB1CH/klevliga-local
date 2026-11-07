@@ -51,6 +51,7 @@ func New(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, error
 		p.SearchService(),
 		p.SocialService(),
 		p.ModerationService(),
+		p.AccessService(),
 		cfg.Auth.CookieName,
 		cfg.Auth.CookieSecure,
 		cfg.Auth.CookieDomain,

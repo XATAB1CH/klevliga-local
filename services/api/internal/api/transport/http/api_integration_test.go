@@ -214,7 +214,7 @@ func newIntegrationAPI(t *testing.T) *integrationAPI {
 	cfg := &config.Config{Auth: config.Auth{SessionTTL: time.Hour, CookieName: "test_session", VerificationTTL: 10 * time.Minute, VerificationSecret: "integration-test-secret"}}
 	mail := &captureMailSender{codes: make(map[string]string)}
 	p := provider.NewProvider(cfg, pool, mail)
-	h := NewHandler(p.AuthService(), p.ForumService(), p.ReportService(), p.WaterService(), p.FeedService(), p.SearchService(), p.SocialService(), p.ModerationService(), cfg.Auth.CookieName, false, "", time.Hour)
+	h := NewHandler(p.AuthService(), p.ForumService(), p.ReportService(), p.WaterService(), p.FeedService(), p.SearchService(), p.SocialService(), p.ModerationService(), p.AccessService(), cfg.Auth.CookieName, false, "", time.Hour)
 	s := NewServer(h, ":0", slog.New(slog.NewTextHandler(io.Discard, nil)), false)
 	server := httptest.NewServer(s.server.Handler)
 	t.Cleanup(server.Close)
@@ -227,8 +227,9 @@ func TestRegistrationRequiresCodeAndCreatesSession(t *testing.T) {
 	a := newIntegrationAPI(t)
 	email := "verify_" + strings.ReplaceAll(uuid.NewString(), "-", "") + "@example.test"
 	username := "angler_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:20]
-	status, data := a.request(t, http.MethodPost, "/auth/register", map[string]string{
+	status, data := a.request(t, http.MethodPost, "/auth/register", map[string]any{
 		"email": email, "username": username, "password": "correct horse battery staple",
+		"roles": []string{"user", "admin"}, "role": "admin",
 	}, nil)
 	if status != http.StatusAccepted {
 		t.Fatalf("register: %d %s", status, data)
@@ -270,6 +271,9 @@ func TestRegistrationRequiresCodeAndCreatesSession(t *testing.T) {
 	status, data = a.request(t, http.MethodGet, "/auth/me", nil, sessionCookie)
 	if status != http.StatusOK || !strings.Contains(string(data), username) {
 		t.Fatalf("me: %d %s", status, data)
+	}
+	if !bytes.Contains(data, []byte(`"roles":["user"]`)) || !bytes.Contains(data, []byte(`"permissions":[]`)) {
+		t.Fatalf("registration granted privileged access: %s", data)
 	}
 }
 

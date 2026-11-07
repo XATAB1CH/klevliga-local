@@ -21,6 +21,23 @@ type AbuseReport struct {
 	CreatedAt  time.Time
 }
 
+type AccessControlLock struct {
+	ID bool
+}
+
+type AuditEvent struct {
+	ID         uuid.UUID
+	ActorType  string
+	ActorID    pgtype.UUID
+	Action     string
+	TargetType string
+	TargetID   uuid.UUID
+	Reason     string
+	RequestID  string
+	Changes    []byte
+	CreatedAt  time.Time
+}
+
 type Follow struct {
 	UserID     uuid.UUID
 	TargetType string
@@ -139,8 +156,8 @@ type UserProfile struct {
 	Bio         *string
 	Region      *string
 	AvatarUrl   *string
-	Role        string
 	UpdatedAt   time.Time
+	Roles       []string
 }
 
 type Water struct {

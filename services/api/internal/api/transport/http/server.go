@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/XATAB1CH/klev-liga/internal/domains/auth"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -79,6 +80,16 @@ func NewServer(h *Handler, addr string, log *slog.Logger, trustLoopbackProxy boo
 
 		// Moderation.
 		r.Post("/moderation/flags", h.flagContent)
+
+		r.Route("/admin", func(r chi.Router) {
+			r.Use(adminRequestMiddleware)
+			r.Use(requireAuthMiddleware)
+			r.With(requirePermission(auth.ManageUsers)).Get("/users", h.searchAdminUsers)
+			r.With(requirePermission(auth.ManageUsers)).Get("/users/{id}", h.getAdminUser)
+			r.With(requirePermission(auth.ManageUsers)).Put("/users/{id}/roles", h.changeRoles)
+			r.With(requirePermission(auth.ManageUsers)).Put("/users/{id}/status", h.changeUserStatus)
+			r.With(requirePermission(auth.ViewAudit)).Get("/audit-events", h.listAuditEvents)
+		})
 	})
 
 	return &Server{

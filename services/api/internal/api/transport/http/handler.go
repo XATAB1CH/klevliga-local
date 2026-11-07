@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/XATAB1CH/klev-liga/internal/domains/apperr"
+	accessSvc "github.com/XATAB1CH/klev-liga/internal/services/access"
 	authSvc "github.com/XATAB1CH/klev-liga/internal/services/auth"
 	feedSvc "github.com/XATAB1CH/klev-liga/internal/services/feed"
 	forumSvc "github.com/XATAB1CH/klev-liga/internal/services/forum"
@@ -32,6 +33,7 @@ type Handler struct {
 	search     *searchSvc.Service
 	social     *socialSvc.Service
 	moderation *moderationSvc.Service
+	access     *accessSvc.Service
 
 	cookieName   string
 	cookieSecure bool
@@ -48,6 +50,7 @@ func NewHandler(
 	search *searchSvc.Service,
 	social *socialSvc.Service,
 	moderation *moderationSvc.Service,
+	access *accessSvc.Service,
 	cookieName string,
 	cookieSecure bool,
 	cookieDomain string,
@@ -62,6 +65,7 @@ func NewHandler(
 		search:       search,
 		social:       social,
 		moderation:   moderation,
+		access:       access,
 		cookieName:   cookieName,
 		cookieSecure: cookieSecure,
 		cookieDomain: cookieDomain,

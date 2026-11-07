@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/XATAB1CH/klev-liga/internal/config"
+	"github.com/XATAB1CH/klev-liga/internal/services/access"
 	"github.com/XATAB1CH/klev-liga/internal/services/auth"
 	"github.com/XATAB1CH/klev-liga/internal/services/feed"
 	"github.com/XATAB1CH/klev-liga/internal/services/forum"
@@ -32,6 +33,7 @@ type Provider struct {
 	socialSvc  *social.Service
 	modSvc     *moderation.Service
 	mailSender mailSvc.Sender
+	accessSvc  *access.Service
 }
 
 func NewProvider(cfg *config.Config, db *pgxpool.Pool, senders ...mailSvc.Sender) *Provider {
@@ -63,6 +65,13 @@ func (p *Provider) AuthService() *auth.Service {
 	}
 
 	return p.authSvc
+}
+
+func (p *Provider) AccessService() *access.Service {
+	if p.accessSvc == nil {
+		p.accessSvc = access.NewService(p.Store())
+	}
+	return p.accessSvc
 }
 
 func (p *Provider) ForumService() *forum.Service {
