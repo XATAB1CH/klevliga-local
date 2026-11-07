@@ -1,5 +1,7 @@
 # Концепция схемы PostgreSQL (без реализации миграций)
 
+Этот файл сохраняет первоначальную концепцию и не является точным описанием текущих таблиц. Фактическая схема находится в `services/api/migrations`; новые роли, чат, поддержка и аудит запланированы в [ROADMAP.md](ROADMAP.md). Перед их реализацией модель и контракты нужно актуализировать вместе с миграциями.
+
 ## Сущности
 
 - `users (id UUID PK, email CITEXT UNIQUE, password_hash, username CITEXT UNIQUE, status, created_at, updated_at)`
